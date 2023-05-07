@@ -1,12 +1,6 @@
-mod vector;
-use vector::*;
-
-mod matrix;
-use matrix::*;
+mod linalg;
+use linalg::*;
 
 fn main() {
-
-
-
 
 }
