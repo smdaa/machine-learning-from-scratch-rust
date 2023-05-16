@@ -1,140 +1,14 @@
-use rand::Rng;
+use rand::distributions::{Distribution, Uniform};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::vec;
 
-pub struct Vector {
-    pub size: usize,
-    data: Vec<f64>,
-}
-
-impl Vector {
-    pub fn new(size: usize, value: f64) -> Self {
-        Vector {
-            size: size,
-            data: vec![value; size],
-        }
-    }
-
-    pub fn rand(size: usize) -> Self {
-        let mut rng = rand::thread_rng();
-        let data = (0..size).map(|_| rng.gen_range(0.0..1.0)).collect();
-        Self {
-            size: size,
-            data: data,
-        }
-    }
-
-    pub fn from_txt(path: &str) -> Self {
-        let file = File::open(path).expect("Could not open file");
-        let reader = BufReader::new(file);
-        let mut data: Vec<f64> = Vec::new();
-        for line in reader.lines() {
-            let line = line.expect("Could not read line");
-            let num = line.trim().parse::<f64>().expect("Could not parse number");
-            data.push(num);
-        }
-        Vector {
-            size: data.len(),
-            data,
-        }
-    }
-
-    pub fn from_str(string: &str) -> Self {
-        let mut data = Vec::new();
-        for item in string.split(" ") {
-            if let Ok(num) = item.trim().parse::<f64>() {
-                data.push(num);
-            }
-        }
-        Vector {
-            size: data.len(),
-            data,
-        }
-    }
-
-    pub fn print(&self) {
-        println!("{:?}", self.data)
-    }
-
-    pub fn copy(&self) -> Self {
-        let new_data = self.data.clone();
-
-        Vector {
-            size: self.size,
-            data: new_data,
-        }
-    }
-
-    pub fn is_equal(&self, vec: &Vector) -> bool {
-        self.size == vec.size && self.data.iter().zip(vec.data.iter()).all(|(x, y)| *x == *y)
-    }
-}
-
-pub fn element_wise_operation_vector(vec: &Vector, op: impl Fn(f64) -> f64) -> Vector {
-    let mut new_vec = vec.copy();
-    new_vec.data.iter_mut().for_each(|x| *x = op(*x));
-
-    new_vec
-}
-
-pub fn add_scalar_vector(scalar: f64, vec: &Vector) -> Vector {
-    element_wise_operation_vector(vec, |x| scalar + x)
-}
-
-pub fn subtract_scalar_vector(scalar: f64, vec: &Vector) -> Vector {
-    element_wise_operation_vector(vec, |x| x - scalar)
-}
-
-pub fn multiply_scalar_vector(scalar: f64, vec: &Vector) -> Vector {
-    element_wise_operation_vector(vec, |x| scalar * x)
-}
-
-pub fn element_wise_operation_vectors(
-    vec1: &Vector,
-    vec2: &Vector,
-    op: impl Fn(f64, f64) -> f64,
-) -> Vector {
-    assert_eq!(vec1.size, vec2.size, "Matrix shapes must match");
-    let mut vec = vec1.copy();
-    vec.data
-        .iter_mut()
-        .zip(vec2.data.iter())
-        .for_each(|(a, b)| *a = op(*a, *b));
-    vec
-}
-
-pub fn add_vectors(vec1: &Vector, vec2: &Vector) -> Vector {
-    element_wise_operation_vectors(vec1, vec2, |a, b| a + b)
-}
-pub fn subtract_vectors(vec1: &Vector, vec2: &Vector) -> Vector {
-    element_wise_operation_vectors(vec1, vec2, |a, b| a - b)
-}
-pub fn multiply_vectors(vec1: &Vector, vec2: &Vector) -> Vector {
-    element_wise_operation_vectors(vec1, vec2, |a, b| a * b)
-}
-
-pub fn dot_vector_vector(vec1: &Vector, vec2: &Vector) -> f64 {
-    assert_eq!(vec1.size, vec2.size);
-    vec1.data
-        .iter()
-        .zip(vec2.data.iter())
-        .map(|(x, y)| x * y)
-        .sum()
-}
-
-pub fn sum_vector(vec: &Vector) -> f64 {
-    vec.data.iter().sum()
-}
-
-pub fn mean_vector(vec: &Vector) -> f64 {
-    sum_vector(vec) / vec.size as f64
-}
+use crate::vector::Vector;
 
 pub struct Matrix {
     pub n_rows: usize,
     pub n_columns: usize,
-    data: Vec<Vec<f64>>,
+    pub data: Vec<Vec<f64>>,
 }
 
 impl Matrix {
@@ -158,11 +32,12 @@ impl Matrix {
         }
     }
 
-    pub fn rand(n_rows: usize, n_columns: usize) -> Self {
+    pub fn rand(n_rows: usize, n_columns: usize, low:f64, high:f64) -> Self {
         let mut rng = rand::thread_rng();
+        let uniform_dist = Uniform::new(low,high);
         let mut data = Vec::new();
         for _ in 0..n_rows {
-            data.push((0..n_columns).map(|_| rng.gen_range(0.0..1.0)).collect());
+            data.push((0..n_columns).map(|_| uniform_dist.sample(&mut rng)).collect());
         }
         Self {
             n_rows: n_rows,
@@ -394,152 +269,6 @@ pub fn multiply_vector_matrix(mat: &Matrix, vec: &Vector) -> Matrix {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_new_vector() {
-        let vec = Vector::new(100, 1.0);
-        assert_eq!(vec.size, 100);
-        assert!(vec.data.iter().all(|x| *x == 1.0));
-    }
-
-    #[test]
-    fn test_rand_vector() {
-        let vec = Vector::rand(100);
-        assert_eq!(vec.size, 100);
-        assert!(vec.data.iter().all(|x| *x > 0.0 && *x < 1.0));
-    }
-
-    #[test]
-    fn test_from_str_vector() {
-        let vec = Vector::from_str("1.0 1.0 1.0 1.0 1.0 1.0");
-        assert_eq!(vec.size, 6);
-        assert!(vec.data.iter().all(|x| *x == 1.0));
-    }
-
-    #[test]
-    fn test_copy_vector() {
-        let vec = Vector::rand(100);
-        let vec_copy = vec.copy();
-        assert_eq!(vec.size, vec_copy.size);
-        assert!(vec
-            .data
-            .iter()
-            .zip(vec_copy.data.iter())
-            .all(|(x, y)| *x == *y));
-    }
-
-    #[test]
-    fn test_element_wise_operation_vector() {
-        let vec1 = Vector::rand(100);
-        let vec2 = element_wise_operation_vector(&vec1, |x| 2.0 * x + 1.0);
-        assert_eq!(vec1.size, vec2.size);
-        assert!(vec1
-            .data
-            .iter()
-            .zip(vec2.data.iter())
-            .all(|(x, y)| *y == *x * 2.0 + 1.0));
-    }
-
-    #[test]
-    fn test_add_scalar_vector() {
-        let vec1 = Vector::rand(100);
-        let vec2 = add_scalar_vector(2.0, &vec1);
-        assert!(vec1
-            .data
-            .iter()
-            .zip(vec2.data.iter())
-            .all(|(x, y)| *y == 2.0 + *x));
-    }
-
-    #[test]
-    fn test_subtract_scalar_vector() {
-        let vec1 = Vector::rand(100);
-        let vec2 = subtract_scalar_vector(2.0, &vec1);
-        assert!(vec1
-            .data
-            .iter()
-            .zip(vec2.data.iter())
-            .all(|(x, y)| *y == *x - 2.0));
-    }
-
-    #[test]
-    fn test_multiply_scalar_vector() {
-        let vec1 = Vector::rand(100);
-        let vec2 = multiply_scalar_vector(2.0, &vec1);
-        assert!(vec1
-            .data
-            .iter()
-            .zip(vec2.data.iter())
-            .all(|(x, y)| *y == *x * 2.0));
-    }
-
-    #[test]
-    fn test_element_wise_operation_vectors() {
-        let vec1 = Vector::rand(100);
-        let vec2 = Vector::rand(100);
-        let vec3 = element_wise_operation_vectors(&vec1, &vec2, |x, y| x * 2.0 + y);
-        assert!(vec3
-            .data
-            .iter()
-            .zip(vec1.data.iter().zip(vec2.data.iter()))
-            .all(|(z, (x, y))| *z == *y + *x * 2.0));
-    }
-
-    #[test]
-    fn test_add_vectors() {
-        let vec1 = Vector::rand(100);
-        let vec2 = Vector::rand(100);
-        let vec3 = add_vectors(&vec1, &vec2);
-        assert!(vec3
-            .data
-            .iter()
-            .zip(vec1.data.iter().zip(vec2.data.iter()))
-            .all(|(z, (x, y))| *z == *y + *x));
-    }
-
-    #[test]
-    fn test_subtract_vectors() {
-        let vec1 = Vector::rand(100);
-        let vec2 = Vector::rand(100);
-        let vec3 = subtract_vectors(&vec1, &vec2);
-        assert!(vec3
-            .data
-            .iter()
-            .zip(vec1.data.iter().zip(vec2.data.iter()))
-            .all(|(z, (x, y))| *z == *x - *y));
-    }
-
-    #[test]
-    fn test_multiply_vectors() {
-        let vec1 = Vector::rand(100);
-        let vec2 = Vector::rand(100);
-        let vec3 = multiply_vectors(&vec1, &vec2);
-        assert!(vec3
-            .data
-            .iter()
-            .zip(vec1.data.iter().zip(vec2.data.iter()))
-            .all(|(z, (x, y))| *z == *x * *y));
-    }
-
-    #[test]
-    fn test_dot_vector_vector() {
-        let vec1 = Vector::new(100, 1.0);
-        let vec2 = Vector::new(100, 1.0);
-        assert_eq!(100.0, dot_vector_vector(&vec1, &vec2));
-    }
-
-    #[test]
-    fn test_sum_vector() {
-        let vec = Vector::new(100, 1.0);
-        assert_eq!(sum_vector(&vec), 100.0);
-    }
-
-    #[test]
-    fn test_mean_vector() {
-        let vec = Vector::new(100, 1.0);
-        assert_eq!(mean_vector(&vec), 1.0);
-    }
-
     #[test]
     fn test_new_matrix() {
         let mat = Matrix::new(100, 100, 1.0);
@@ -566,7 +295,7 @@ mod tests {
 
     #[test]
     fn test_rand_matrix() {
-        let mat = Matrix::rand(100, 200);
+        let mat = Matrix::rand(100, 200, 0.0, 1.0);
         assert_eq!(mat.n_rows, 100);
         assert_eq!(mat.n_columns, 200);
         assert!(mat
@@ -585,19 +314,19 @@ mod tests {
 
     #[test]
     fn test_shape() {
-        let mat = Matrix::rand(100, 200);
+        let mat = Matrix::rand(100, 200, 0.0, 1.0);
         assert_eq!(mat.shape(), (100, 200));
     }
 
     #[test]
     fn test_size() {
-        let mat = Matrix::rand(100, 200);
+        let mat = Matrix::rand(100, 200, 0.0, 1.0);
         assert_eq!(mat.size(), 20000);
     }
 
     #[test]
     fn test_copy_matrix() {
-        let mat = Matrix::rand(100, 200);
+        let mat = Matrix::rand(100, 200, 0.0, 1.0);
         let mat_copy = mat.copy();
         assert_eq!(mat.shape(), mat_copy.shape());
         assert!(mat.is_equal(&mat_copy));
@@ -605,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_transpose() {
-        let mat = Matrix::rand(100, 200);
+        let mat = Matrix::rand(100, 200, 0.0, 1.0);
         let mat_transposed = transpose(&mat);
         assert_eq!(mat.n_rows, mat_transposed.n_columns);
         assert_eq!(mat.n_columns, mat_transposed.n_rows);
@@ -637,7 +366,7 @@ mod tests {
 
     #[test]
     fn test_dot_matrix_matrix_0() {
-        let mat = Matrix::rand(100, 200);
+        let mat = Matrix::rand(100, 200, 0.0, 1.0);
         let res = dot_matrix_matrix(&mat, &Matrix::eye(200));
         assert_eq!(res.shape(), (100, 200));
         assert!(mat.is_equal(&res));
@@ -660,7 +389,7 @@ mod tests {
 
     #[test]
     fn test_element_wise_operation_matrix() {
-        let mat1 = Matrix::rand(100, 200);
+        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
         let mat2 = element_wise_operation_matrix(&mat1, |x| 2.0 * x + 1.0);
         assert_eq!(mat1.shape(), mat2.shape());
         assert!(mat1
@@ -672,7 +401,7 @@ mod tests {
 
     #[test]
     fn test_add_scalar_matrix() {
-        let mat1 = Matrix::rand(100, 200);
+        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
         let mat2 = add_scalar_matrix(2.0, &mat1);
         assert_eq!(mat1.shape(), mat2.shape());
         assert!(mat1
@@ -684,7 +413,7 @@ mod tests {
 
     #[test]
     fn test_subtract_scalar_matrix() {
-        let mat1 = Matrix::rand(100, 200);
+        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
         let mat2 = subtract_scalar_matrix(2.0, &mat1);
         assert_eq!(mat1.shape(), mat2.shape());
         assert!(mat1
@@ -696,7 +425,7 @@ mod tests {
 
     #[test]
     fn test_multiply_scalar_matrix() {
-        let mat1 = Matrix::rand(100, 200);
+        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
         let mat2 = multiply_scalar_matrix(2.0, &mat1);
         assert_eq!(mat1.shape(), mat2.shape());
         assert!(mat1
@@ -708,8 +437,8 @@ mod tests {
 
     #[test]
     fn test_element_wise_operation_matrices() {
-        let mat1 = Matrix::rand(100, 200);
-        let mat2 = Matrix::rand(100, 200);
+        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat2 = Matrix::rand(100, 200, 0.0, 1.0);
         let mat3 = element_wise_operation_matrices(&mat1, &mat2, |x, y| x * 2.0 + y);
         assert!(mat3
             .data
@@ -723,8 +452,8 @@ mod tests {
 
     #[test]
     fn test_add_matrices() {
-        let mat1 = Matrix::rand(100, 200);
-        let mat2 = Matrix::rand(100, 200);
+        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat2 = Matrix::rand(100, 200, 0.0, 1.0);
         let mat3 = add_matrices(&mat1, &mat2);
         assert!(mat3
             .data
@@ -738,8 +467,8 @@ mod tests {
 
     #[test]
     fn test_subtract_matrices() {
-        let mat1 = Matrix::rand(100, 200);
-        let mat2 = Matrix::rand(100, 200);
+        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat2 = Matrix::rand(100, 200, 0.0, 1.0);
         let mat3 = subtract_matrices(&mat1, &mat2);
         assert!(mat3
             .data
@@ -753,8 +482,8 @@ mod tests {
 
     #[test]
     fn test_multiply_matrices() {
-        let mat1 = Matrix::rand(100, 200);
-        let mat2 = Matrix::rand(100, 200);
+        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat2 = Matrix::rand(100, 200, 0.0, 1.0);
         let mat3 = multiply_matrices(&mat1, &mat2);
         assert!(mat3
             .data
