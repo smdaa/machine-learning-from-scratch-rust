@@ -2,23 +2,17 @@ mod vector;
 mod matrix;
 mod layer;
 
-use vector::Vector;
-use matrix::Matrix;
-use layer::Dense;
+use vector::*;
+use matrix::*;
+use layer::*;
 
 fn main() {
+    let in_size = 32;
+    let out_size = 16;
+    let dense = Dense::new(in_size, out_size);
+    let x = Vector::rand(in_size, 0.0, 1.0);
+    let y = forward_pass_dense(&dense, |v| 2.0*v+1.0, &x);
 
-    let dense = Dense::new(32, 16);
-    let limit = 1.0 / (dense.in_size as f64).sqrt();
-    println!("{}", limit);
-    for i in 0..dense.w.n_rows{
-        for j in 0..dense.w.n_columns{
-            if dense.w.data[i][j] > limit {
-                println!("{}", dense.w.data[i][j]);
-            }
-            if dense.w.data[i][j] < -limit {
-                println!("{}", dense.w.data[i][j]);
-            }
-        }
-    }
+    x.print();
+    y.print();
 }
