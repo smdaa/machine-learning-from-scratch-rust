@@ -32,12 +32,16 @@ impl Matrix {
         }
     }
 
-    pub fn rand(n_rows: usize, n_columns: usize, low:f64, high:f64) -> Self {
+    pub fn rand(n_rows: usize, n_columns: usize, low: f64, high: f64) -> Self {
         let mut rng = rand::thread_rng();
-        let uniform_dist = Uniform::new(low,high);
+        let uniform_dist = Uniform::new(low, high);
         let mut data = Vec::new();
         for _ in 0..n_rows {
-            data.push((0..n_columns).map(|_| uniform_dist.sample(&mut rng)).collect());
+            data.push(
+                (0..n_columns)
+                    .map(|_| uniform_dist.sample(&mut rng))
+                    .collect(),
+            );
         }
         Self {
             n_rows: n_rows,
@@ -120,6 +124,52 @@ pub fn transpose(mat: &Matrix) -> Matrix {
         }
     }
     new_mat
+}
+
+pub fn slice(
+    mat: &Matrix,
+    (start_row, end_row): (usize, usize),
+    (start_column, end_column): (usize, usize),
+) -> Matrix {
+    assert!(end_row < mat.n_rows);
+    assert!(end_column < mat.n_columns);
+    let new_n_rows = end_row - start_row + 1;
+    let new_n_columns = end_column - start_column + 1;
+    let mut new_mat = Matrix::new(new_n_rows, new_n_columns, 0.0);
+
+    for i in 0..new_mat.n_rows {
+        for j in 0..new_mat.n_columns {
+            new_mat.data[i][j] = mat.data[i + start_row][j + start_column];
+        }
+    }
+
+    new_mat
+}
+
+pub fn concat(mat1: &Matrix, mat2: &Matrix, row: bool) -> Matrix {
+    if row {
+        assert_eq!(mat1.n_columns, mat2.n_columns);
+        let n_rows = mat1.n_rows + mat2.n_rows;
+        let n_columns = mat1.n_columns;
+        let mut mat = mat1.copy();
+        mat.n_rows = n_rows;
+        mat.n_columns = n_columns;
+        mat2.data.iter().for_each(|row| mat.data.push(row.clone()));
+        mat
+    } else {
+        assert_eq!(mat1.n_rows, mat2.n_rows);
+        let n_rows = mat1.n_rows;
+        let n_columns = mat1.n_columns + mat2.n_columns;
+        let mut mat = mat1.copy();
+        mat.n_rows = n_rows;
+        mat.n_columns = n_columns;
+        mat2.data
+            .iter()
+            .zip(mat.data.iter_mut())
+            .for_each(|(row2, row1)| row2.iter().for_each(|v| row1.push(*v)));
+
+        mat
+    }
 }
 
 pub fn det(mat: &Matrix) -> f64 {
@@ -243,31 +293,56 @@ pub fn element_wise_operation_vector_matrix(
     mat: &Matrix,
     vec: &Vector,
     op: impl Fn(f64, f64) -> f64,
+    row: bool,
 ) -> Matrix {
-    assert_eq!(vec.size, mat.n_columns);
+    if row {
+        assert_eq!(vec.size, mat.n_columns);
+    } else {
+        assert_eq!(vec.size, mat.n_rows);
+    }
     let mut new_mat = mat.copy();
-    new_mat.data.iter_mut().for_each(|row| {
-        row.iter_mut()
-            .zip(vec.data.iter())
-            .for_each(|(x, y)| *x = op(*x, *y))
-    });
+    for i in 0..new_mat.n_rows {
+        for j in 0..new_mat.n_columns {
+            if row {
+                new_mat.data[i][j] = op(new_mat.data[i][j], vec.data[j]);
+            } else {
+                new_mat.data[i][j] = op(new_mat.data[i][j], vec.data[i]);
+            }
+        }
+    }
     new_mat
 }
 
-pub fn add_vector_matrix(mat: &Matrix, vec: &Vector) -> Matrix {
-    element_wise_operation_vector_matrix(mat, vec, |a, b| a + b)
+pub fn add_vector_matrix(mat: &Matrix, vec: &Vector, row: bool) -> Matrix {
+    element_wise_operation_vector_matrix(mat, vec, |a, b| a + b, row)
 }
 
-pub fn subtract_vector_matrix(mat: &Matrix, vec: &Vector) -> Matrix {
-    element_wise_operation_vector_matrix(mat, vec, |a, b| a - b)
+pub fn subtract_vector_matrix(mat: &Matrix, vec: &Vector, row: bool) -> Matrix {
+    element_wise_operation_vector_matrix(mat, vec, |a, b| a - b, row)
 }
 
-pub fn multiply_vector_matrix(mat: &Matrix, vec: &Vector) -> Matrix {
-    element_wise_operation_vector_matrix(mat, vec, |a, b| a * b)
+pub fn multiply_vector_matrix(mat: &Matrix, vec: &Vector, row: bool) -> Matrix {
+    element_wise_operation_vector_matrix(mat, vec, |a, b| a * b, row)
+}
+
+pub fn dot_vector_t_vector(vec1: &Vector, vec2: &Vector) -> Matrix {
+    let n_rows = vec1.size;
+    let n_columns = vec2.size;
+    let mut mat = Matrix::new(n_rows, n_columns, 0.0);
+
+    for i in 0..mat.n_rows {
+        for j in 0..mat.n_columns {
+            mat.data[i][j] = vec1.data[i] * vec2.data[j];
+        }
+    }
+
+    mat
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::vector::dot_vector_vector;
+
     use super::*;
     #[test]
     fn test_new_matrix() {
@@ -328,7 +403,6 @@ mod tests {
     fn test_copy_matrix() {
         let mat = Matrix::rand(100, 200, 0.0, 1.0);
         let mat_copy = mat.copy();
-        assert_eq!(mat.shape(), mat_copy.shape());
         assert!(mat.is_equal(&mat_copy));
     }
 
@@ -343,6 +417,33 @@ mod tests {
                 assert_eq!(mat.data[i][j], mat_transposed.data[j][i]);
             }
         }
+    }
+
+    #[test]
+    fn test_slice() {
+        let mat = Matrix::eye(5);
+        let mat_slice1 = slice(&mat, (0, 4), (0, 4));
+        assert!(mat.is_equal(&mat_slice1));
+        let mat_slice2 = slice(&mat, (0, 2), (0, 2));
+        let expected_mat_slice2 = Matrix::eye(3);
+        assert!(mat_slice2.is_equal(&expected_mat_slice2));
+        let mat_slice3 = slice(&mat, (0, 4), (0, 0));
+        let expected_mat_slice3 = Matrix::from_str("1, 0, 0, 0, 0");
+        assert!(mat_slice3.is_equal(&expected_mat_slice3));
+    }
+
+    #[test]
+    fn test_concat() {
+        let mat1 = Matrix::new(2, 3, 0.0);
+        let mat2 = Matrix::new(3, 3, 2.0);
+        let mat = concat(&mat1, &mat2, true);
+        let expected_mat = Matrix::from_str("0 0 0, 0 0 0, 2 2 2, 2 2 2, 2 2 2");
+        assert!(mat.is_equal(&expected_mat));
+        let mat1 = Matrix::new(2, 2, 0.0);
+        let mat2 = Matrix::new(2, 3, 2.0);
+        let mat = concat(&mat1, &mat2, false);
+        let expected_mat = Matrix::from_str("0 0 2 2 2, 0 0 2 2 2");
+        assert!(mat.is_equal(&expected_mat));
     }
 
     #[test]
@@ -499,20 +600,43 @@ mod tests {
     fn test_add_vector_matrix() {
         let mat = Matrix::from_str("1 -1 2, 0 -3 1");
         let vec = Vector::from_str("2 1 0");
-        assert!(add_vector_matrix(&mat, &vec).is_equal(&Matrix::from_str("3 0 2, 2 -2 1")))
+        assert!(add_vector_matrix(&mat, &vec, true).is_equal(&Matrix::from_str("3 0 2, 2 -2 1")));
+        let mat = Matrix::from_str("1 -1 2, 0 -3 1");
+        let vec = Vector::from_str("2 1");
+        assert!(add_vector_matrix(&mat, &vec, false).is_equal(&Matrix::from_str("3 1 4, 1 -2 2")));
     }
 
     #[test]
     fn test_subtract_vector_matrix() {
         let mat = Matrix::from_str("1 -1 2, 0 -3 1");
         let vec = Vector::from_str("2 1 0");
-        assert!(subtract_vector_matrix(&mat, &vec).is_equal(&Matrix::from_str("-1 -2 2, -2 -4 1")))
+        assert!(subtract_vector_matrix(&mat, &vec, true)
+            .is_equal(&Matrix::from_str("-1 -2 2, -2 -4 1")));
+        let mat = Matrix::from_str("1 -1 2, 0 -3 1");
+        let vec = Vector::from_str("2 1");
+        assert!(subtract_vector_matrix(&mat, &vec, false)
+            .is_equal(&Matrix::from_str("-1 -3 0, -1 -4 0")));
     }
 
     #[test]
     fn test_multiply_vector_matrix() {
         let mat = Matrix::from_str("1 -1 2, 0 -3 1");
         let vec = Vector::from_str("2 1 0");
-        assert!(multiply_vector_matrix(&mat, &vec).is_equal(&Matrix::from_str("2 -1 0, 0 -3 0")))
+        assert!(
+            multiply_vector_matrix(&mat, &vec, true).is_equal(&Matrix::from_str("2 -1 0, 0 -3 0"))
+        );
+        let mat = Matrix::from_str("1 -1 2, 0 -3 1");
+        let vec = Vector::from_str("2 1");
+        assert!(
+            multiply_vector_matrix(&mat, &vec, false).is_equal(&Matrix::from_str("2 -2 4, 0 -3 1"))
+        )
+    }
+
+    #[test]
+    fn test_dot_vector_t_vector() {
+        let vec1 = Vector::new(32, 2.0);
+        let vec2 = Vector::new(16, 2.0);
+        let mat = dot_vector_t_vector(&vec1, &vec2);
+        assert!(mat.data.iter().all(|row| row.iter().all(|v| *v == 4.0)));
     }
 }
