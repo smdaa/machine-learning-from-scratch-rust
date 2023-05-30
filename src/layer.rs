@@ -45,7 +45,7 @@ mod tests {
         let in_size = 32;
         let out_size = 16;
         let batch_size = 8;
-        let mut dense = Dense::new(in_size, out_size, batch_size);
+        let dense = Dense::new(in_size, out_size, batch_size);
         assert_eq!(dense.w.shape(), (32, 16));
         assert_eq!(dense.b.shape(), (8, 16));
         let limit = 1.0 / (dense.in_size as f64).sqrt();

@@ -146,32 +146,6 @@ pub fn slice(
     new_mat
 }
 
-pub fn concat(mat1: &Matrix, mat2: &Matrix, row: bool) -> Matrix {
-    if row {
-        assert_eq!(mat1.n_columns, mat2.n_columns);
-        let n_rows = mat1.n_rows + mat2.n_rows;
-        let n_columns = mat1.n_columns;
-        let mut mat = mat1.copy();
-        mat.n_rows = n_rows;
-        mat.n_columns = n_columns;
-        mat2.data.iter().for_each(|row| mat.data.push(row.clone()));
-        mat
-    } else {
-        assert_eq!(mat1.n_rows, mat2.n_rows);
-        let n_rows = mat1.n_rows;
-        let n_columns = mat1.n_columns + mat2.n_columns;
-        let mut mat = mat1.copy();
-        mat.n_rows = n_rows;
-        mat.n_columns = n_columns;
-        mat2.data
-            .iter()
-            .zip(mat.data.iter_mut())
-            .for_each(|(row2, row1)| row2.iter().for_each(|v| row1.push(*v)));
-
-        mat
-    }
-}
-
 pub fn det(mat: &Matrix) -> f64 {
     assert_eq!(mat.n_rows, mat.n_columns, "Matrix must be square");
     let mut mat_copy = mat.copy();
@@ -430,20 +404,6 @@ mod tests {
         let mat_slice3 = slice(&mat, (0, 4), (0, 0));
         let expected_mat_slice3 = Matrix::from_str("1, 0, 0, 0, 0");
         assert!(mat_slice3.is_equal(&expected_mat_slice3));
-    }
-
-    #[test]
-    fn test_concat() {
-        let mat1 = Matrix::new(2, 3, 0.0);
-        let mat2 = Matrix::new(3, 3, 2.0);
-        let mat = concat(&mat1, &mat2, true);
-        let expected_mat = Matrix::from_str("0 0 0, 0 0 0, 2 2 2, 2 2 2, 2 2 2");
-        assert!(mat.is_equal(&expected_mat));
-        let mat1 = Matrix::new(2, 2, 0.0);
-        let mat2 = Matrix::new(2, 3, 2.0);
-        let mat = concat(&mat1, &mat2, false);
-        let expected_mat = Matrix::from_str("0 0 2 2 2, 0 0 2 2 2");
-        assert!(mat.is_equal(&expected_mat));
     }
 
     #[test]
