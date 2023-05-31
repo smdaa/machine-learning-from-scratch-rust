@@ -11,13 +11,13 @@ pub struct Dense {
 
 impl Dense {
     pub fn new(in_size: usize, out_size: usize, batch_size: usize) -> Self {
-        let limit = 1.0 / (in_size as f64).sqrt();
+        let std_dev = (2.0 / (in_size + out_size) as f64).sqrt();
         Dense {
             in_size: in_size,
             out_size: out_size,
             batch_size: batch_size,
-            w: Matrix::rand(in_size, out_size, -limit, limit),
-            b: Matrix::rand(batch_size,out_size, -limit, limit),
+            w: Matrix::rand(in_size, out_size, 0.0, std_dev),
+            b: Matrix::new(batch_size, out_size, 0.0),
         }
     }
 }
@@ -32,7 +32,7 @@ pub fn activation_pass(y: &Matrix, activation: impl Fn(&Matrix) -> Matrix) -> Ma
 
 /*
 pub fn backward_pass_dense(dense: &Dense, x:&Matrix, grad_output: &Matrix) -> (Vector, Matrix, Vector){
-    
+
 }
 */
 
@@ -53,12 +53,13 @@ mod tests {
             .w
             .data
             .iter()
-            .all(|row| row.iter().all(|x| *x > -limit && *x < limit)));
+            .all(|row| (row.iter().sum::<f64>() / dense.w.n_rows as f64).round() == 0.0));
+
         assert!(dense
             .b
             .data
             .iter()
-            .all(|row| row.iter().all(|x| *x > -limit && *x < limit)));
+            .all(|row| row.iter().sum::<f64>() == 0.0));
     }
 
     #[test]
@@ -72,6 +73,9 @@ mod tests {
         let x = Matrix::new(batch_size, in_size, 10.0);
         let y = forward_pass_dense(&dense, &x);
         let sum_x = 10.0 * (in_size as f64);
-        assert!(y.data.iter().all(|row| row.iter().all(|v| sum_x == v - 3.0)))
+        assert!(y
+            .data
+            .iter()
+            .all(|row| row.iter().all(|v| sum_x == v - 3.0)))
     }
 }

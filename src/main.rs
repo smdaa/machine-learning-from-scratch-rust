@@ -12,9 +12,8 @@ use layer::*;
 use matrix::*;
 use vector::*;
 
+use image::{ImageBuffer, RgbImage};
 use std::time::{Duration, Instant};
-use image::RgbImage;
-
 
 pub fn create_batches(x: &Matrix, batch_size: usize) -> Vec<Matrix> {
     let n_rows = x.n_rows;
@@ -64,17 +63,24 @@ fn main() {
     let dense1 = Dense::new(in_size, hidden_size, batch_size);
     let dense2 = Dense::new(hidden_size, hidden_size, batch_size);
     let dense3 = Dense::new(hidden_size, hidden_size, batch_size);
-    let dense4 = Dense::new(hidden_size, out_size, batch_size);
+    let dense4 = Dense::new(hidden_size, hidden_size, batch_size);
+    let dense5 = Dense::new(hidden_size, hidden_size, batch_size);
+    let dense6 = Dense::new(hidden_size, out_size, batch_size);
 
-    let size_w = 1024;
-    let size_h = 1024;
+    let size_w: usize = 512;
+    let size_h: usize = 512;
 
     // Create dataset
     let start = Instant::now();
     let mut x = Matrix::new(size_w * size_h, in_size, 0.0);
     for i in 0..size_h {
         for j in 0..size_w {
-            x.data[i * size_w + j] = vec![i as f64, j as f64, (i.pow(2) + j.pow(2)) as f64];
+            x.data[i * size_w + j] = vec![
+                (i / size_h) as f64 - 0.5,
+                (j / size_w) as f64 - 0.5,
+                (((i / size_h) as f64 - 0.5).powf(2.0) + ((j / size_w) as f64 - 0.5).powf(2.0))
+                    .sqrt(),
+            ];
         }
     }
     let duration = start.elapsed();
@@ -100,9 +106,15 @@ fn main() {
         y3 = activation_pass(&y3, tanh);
 
         let mut y4 = forward_pass_dense(&dense4, &y3);
-        y4 = activation_pass(&y4, sigmoid);
+        y4 = activation_pass(&y4, tanh);
 
-        y_batched.push(y4);
+        let mut y5 = forward_pass_dense(&dense5, &y4);
+        y5 = activation_pass(&y5, tanh);
+
+        let mut y6 = forward_pass_dense(&dense6, &y5);
+        y6 = activation_pass(&y6, sigmoid);
+
+        y_batched.push(y6);
     }
     let duration = start.elapsed();
     println!("Time elapsed in forward loops is: {:?}", duration);
@@ -116,6 +128,20 @@ fn main() {
     println!("{:?}", x.shape());
     println!("{:?}", y.shape());
 
-    // Plot image
+    // Create image
+    let width: u32 = size_w.try_into().unwrap();
+    let height: u32 = size_h.try_into().unwrap();
+    let mut image: RgbImage = ImageBuffer::new(width, height);
 
+    for i in 0..size_h {
+        for j in 0..size_w {
+            let red = (255.0 * y.data[i * size_w + j][0]) as u8;
+            let green = (255.0 * y.data[i * size_w + j][1]) as u8;
+            let blue = (255.0 * y.data[i * size_w + j][2]) as u8;
+
+            *image.get_pixel_mut(i.try_into().unwrap(), j.try_into().unwrap()) =
+                image::Rgb([red, green, blue]);
+        }
+    }
+    image.save("output.png").unwrap();
 }

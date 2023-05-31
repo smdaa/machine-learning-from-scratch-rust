@@ -1,4 +1,4 @@
-use rand::distributions::{Distribution, Uniform};
+use rand_distr::{Normal, Distribution};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::vec;
@@ -16,10 +16,10 @@ impl Vector {
         }
     }
 
-    pub fn rand(size: usize, low:f64, high:f64) -> Self {
+    pub fn rand(size: usize, mean:f64, std_dev:f64) -> Self {
         let mut rng = rand::thread_rng();
-        let uniform_dist = Uniform::new(low,high);
-        let data = (0..size).map(|_| uniform_dist.sample(&mut rng)).collect();
+        let normal = Normal::new(mean, std_dev).unwrap();
+        let data = (0..size).map(|_| normal.sample(&mut rng)).collect();
         Self {
             size: size,
             data: data,
@@ -145,9 +145,9 @@ mod tests {
 
     #[test]
     fn test_rand_vector() {
-        let vec = Vector::rand(100, 0.0, 1.0);
-        assert_eq!(vec.size, 100);
-        assert!(vec.data.iter().all(|x| *x > 0.0 && *x < 1.0));
+        let vec = Vector::rand(10000, 0.0, 1.0);
+        assert_eq!(vec.size, 10000);
+        assert_eq!(mean_vector(&vec).round(), 0.0);
     }
 
     #[test]

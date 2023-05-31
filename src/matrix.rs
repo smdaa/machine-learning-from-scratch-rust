@@ -1,4 +1,4 @@
-use rand::distributions::{Distribution, Uniform};
+use rand_distr::{Distribution, Normal};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::vec;
@@ -32,14 +32,15 @@ impl Matrix {
         }
     }
 
-    pub fn rand(n_rows: usize, n_columns: usize, low: f64, high: f64) -> Self {
+    pub fn rand(n_rows: usize, n_columns: usize, mean: f64, std_dev: f64) -> Self {
         let mut rng = rand::thread_rng();
-        let uniform_dist = Uniform::new(low, high);
+        let normal = Normal::new(mean, std_dev).unwrap();
         let mut data = Vec::new();
         for _ in 0..n_rows {
             data.push(
                 (0..n_columns)
-                    .map(|_| uniform_dist.sample(&mut rng))
+                    //.map(|_| uniform_dist.sample(&mut rng))
+                    .map(|_| normal.sample(&mut rng))
                     .collect(),
             );
         }
@@ -344,13 +345,13 @@ mod tests {
 
     #[test]
     fn test_rand_matrix() {
-        let mat = Matrix::rand(100, 200, 0.0, 1.0);
-        assert_eq!(mat.n_rows, 100);
-        assert_eq!(mat.n_columns, 200);
+        let mat = Matrix::rand(10000, 5, 0.0, 1.0);
+        assert_eq!(mat.n_rows, 10000);
+        assert_eq!(mat.n_columns, 5);
         assert!(mat
             .data
             .iter()
-            .all(|row| row.iter().all(|x| *x > 0.0 && *x < 1.0)));
+            .all(|row| (row.iter().sum::<f64>() / mat.n_rows as f64).round() == 0.0));
     }
 
     #[test]
