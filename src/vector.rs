@@ -16,7 +16,7 @@ impl Vector {
         }
     }
 
-    pub fn rand(size: usize, mean:f64, std_dev:f64) -> Self {
+    pub fn randn(size: usize, mean:f64, std_dev:f64) -> Self {
         let mut rng = rand::thread_rng();
         let normal = Normal::new(mean, std_dev).unwrap();
         let data = (0..size).map(|_| normal.sample(&mut rng)).collect();
@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_rand_vector() {
-        let vec = Vector::rand(10000, 0.0, 1.0);
+        let vec = Vector::randn(10000, 0.0, 1.0);
         assert_eq!(vec.size, 10000);
         assert_eq!(mean_vector(&vec).round(), 0.0);
     }
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn test_copy_vector() {
-        let vec = Vector::rand(100, 0.0, 1.0);
+        let vec = Vector::randn(100, 0.0, 1.0);
         let vec_copy = vec.copy();
         assert_eq!(vec.size, vec_copy.size);
         assert!(vec
@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_element_wise_operation_vector() {
-        let vec1 = Vector::rand(100, 0.0, 1.0);
+        let vec1 = Vector::randn(100, 0.0, 1.0);
         let vec2 = element_wise_operation_vector(&vec1, |x| 2.0 * x + 1.0);
         assert_eq!(vec1.size, vec2.size);
         assert!(vec1
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn test_add_scalar_vector() {
-        let vec1 = Vector::rand(100, 0.0, 1.0);
+        let vec1 = Vector::randn(100, 0.0, 1.0);
         let vec2 = add_scalar_vector(2.0, &vec1);
         assert!(vec1
             .data
@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_subtract_scalar_vector() {
-        let vec1 = Vector::rand(100, 0.0, 1.0);
+        let vec1 = Vector::randn(100, 0.0, 1.0);
         let vec2 = subtract_scalar_vector(2.0, &vec1);
         assert!(vec1
             .data
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_multiply_scalar_vector() {
-        let vec1 = Vector::rand(100, 0.0, 1.0);
+        let vec1 = Vector::randn(100, 0.0, 1.0);
         let vec2 = multiply_scalar_vector(2.0, &vec1);
         assert!(vec1
             .data
@@ -216,8 +216,8 @@ mod tests {
 
     #[test]
     fn test_element_wise_operation_vectors() {
-        let vec1 = Vector::rand(100, 0.0, 1.0);
-        let vec2 = Vector::rand(100, 0.0, 1.0);
+        let vec1 = Vector::randn(100, 0.0, 1.0);
+        let vec2 = Vector::randn(100, 0.0, 1.0);
         let vec3 = element_wise_operation_vectors(&vec1, &vec2, |x, y| x * 2.0 + y);
         assert!(vec3
             .data
@@ -228,8 +228,8 @@ mod tests {
 
     #[test]
     fn test_add_vectors() {
-        let vec1 = Vector::rand(100, 0.0, 1.0);
-        let vec2 = Vector::rand(100, 0.0, 1.0);
+        let vec1 = Vector::randn(100, 0.0, 1.0);
+        let vec2 = Vector::randn(100, 0.0, 1.0);
         let vec3 = add_vectors(&vec1, &vec2);
         assert!(vec3
             .data
@@ -240,8 +240,8 @@ mod tests {
 
     #[test]
     fn test_subtract_vectors() {
-        let vec1 = Vector::rand(100, 0.0, 1.0);
-        let vec2 = Vector::rand(100, 0.0, 1.0);
+        let vec1 = Vector::randn(100, 0.0, 1.0);
+        let vec2 = Vector::randn(100, 0.0, 1.0);
         let vec3 = subtract_vectors(&vec1, &vec2);
         assert!(vec3
             .data
@@ -252,8 +252,8 @@ mod tests {
 
     #[test]
     fn test_multiply_vectors() {
-        let vec1 = Vector::rand(100, 0.0, 1.0);
-        let vec2 = Vector::rand(100, 0.0, 1.0);
+        let vec1 = Vector::randn(100, 0.0, 1.0);
+        let vec2 = Vector::randn(100, 0.0, 1.0);
         let vec3 = multiply_vectors(&vec1, &vec2);
         assert!(vec3
             .data

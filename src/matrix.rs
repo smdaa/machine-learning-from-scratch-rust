@@ -32,18 +32,46 @@ impl Matrix {
         }
     }
 
-    pub fn rand(n_rows: usize, n_columns: usize, mean: f64, std_dev: f64) -> Self {
+    pub fn randn(n_rows: usize, n_columns: usize, mean: f64, std_dev: f64) -> Self {
         let mut rng = rand::thread_rng();
         let normal = Normal::new(mean, std_dev).unwrap();
         let mut data = Vec::new();
         for _ in 0..n_rows {
             data.push(
                 (0..n_columns)
-                    //.map(|_| uniform_dist.sample(&mut rng))
                     .map(|_| normal.sample(&mut rng))
                     .collect(),
             );
         }
+        Self {
+            n_rows: n_rows,
+            n_columns: n_columns,
+            data: data,
+        }
+    }
+
+    pub fn randn_truncated(
+        n_rows: usize,
+        n_columns: usize,
+        mean: f64,
+        std_dev: f64,
+        lo: f64,
+        hi: f64,
+    ) -> Self {
+        let mut rng = rand::thread_rng();
+        let normal = Normal::new(mean, std_dev).unwrap();
+        let mut data = Vec::new();
+        for _ in 0..n_rows {
+            let mut row = Vec::new();
+            while row.len() < n_columns {
+                let value = normal.sample(&mut rng);
+                if lo <= value && value <= hi {
+                    row.push(value);
+                }
+            }
+            data.push(row);
+        }
+
         Self {
             n_rows: n_rows,
             n_columns: n_columns,
@@ -345,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_rand_matrix() {
-        let mat = Matrix::rand(10000, 5, 0.0, 1.0);
+        let mat = Matrix::randn(10000, 5, 0.0, 1.0);
         assert_eq!(mat.n_rows, 10000);
         assert_eq!(mat.n_columns, 5);
         assert!(mat
@@ -364,26 +392,26 @@ mod tests {
 
     #[test]
     fn test_shape() {
-        let mat = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat = Matrix::randn(100, 200, 0.0, 1.0);
         assert_eq!(mat.shape(), (100, 200));
     }
 
     #[test]
     fn test_size() {
-        let mat = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat = Matrix::randn(100, 200, 0.0, 1.0);
         assert_eq!(mat.size(), 20000);
     }
 
     #[test]
     fn test_copy_matrix() {
-        let mat = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat = Matrix::randn(100, 200, 0.0, 1.0);
         let mat_copy = mat.copy();
         assert!(mat.is_equal(&mat_copy));
     }
 
     #[test]
     fn test_transpose() {
-        let mat = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat = Matrix::randn(100, 200, 0.0, 1.0);
         let mat_transposed = transpose(&mat);
         assert_eq!(mat.n_rows, mat_transposed.n_columns);
         assert_eq!(mat.n_columns, mat_transposed.n_rows);
@@ -428,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_dot_matrix_matrix_0() {
-        let mat = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat = Matrix::randn(100, 200, 0.0, 1.0);
         let res = dot_matrix_matrix(&mat, &Matrix::eye(200));
         assert_eq!(res.shape(), (100, 200));
         assert!(mat.is_equal(&res));
@@ -451,7 +479,7 @@ mod tests {
 
     #[test]
     fn test_element_wise_operation_matrix() {
-        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat1 = Matrix::randn(100, 200, 0.0, 1.0);
         let mat2 = element_wise_operation_matrix(&mat1, |x| 2.0 * x + 1.0);
         assert_eq!(mat1.shape(), mat2.shape());
         assert!(mat1
@@ -463,7 +491,7 @@ mod tests {
 
     #[test]
     fn test_add_scalar_matrix() {
-        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat1 = Matrix::randn(100, 200, 0.0, 1.0);
         let mat2 = add_scalar_matrix(2.0, &mat1);
         assert_eq!(mat1.shape(), mat2.shape());
         assert!(mat1
@@ -475,7 +503,7 @@ mod tests {
 
     #[test]
     fn test_subtract_scalar_matrix() {
-        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat1 = Matrix::randn(100, 200, 0.0, 1.0);
         let mat2 = subtract_scalar_matrix(2.0, &mat1);
         assert_eq!(mat1.shape(), mat2.shape());
         assert!(mat1
@@ -487,7 +515,7 @@ mod tests {
 
     #[test]
     fn test_multiply_scalar_matrix() {
-        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat1 = Matrix::randn(100, 200, 0.0, 1.0);
         let mat2 = multiply_scalar_matrix(2.0, &mat1);
         assert_eq!(mat1.shape(), mat2.shape());
         assert!(mat1
@@ -499,8 +527,8 @@ mod tests {
 
     #[test]
     fn test_element_wise_operation_matrices() {
-        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
-        let mat2 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat1 = Matrix::randn(100, 200, 0.0, 1.0);
+        let mat2 = Matrix::randn(100, 200, 0.0, 1.0);
         let mat3 = element_wise_operation_matrices(&mat1, &mat2, |x, y| x * 2.0 + y);
         assert!(mat3
             .data
@@ -514,8 +542,8 @@ mod tests {
 
     #[test]
     fn test_add_matrices() {
-        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
-        let mat2 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat1 = Matrix::randn(100, 200, 0.0, 1.0);
+        let mat2 = Matrix::randn(100, 200, 0.0, 1.0);
         let mat3 = add_matrices(&mat1, &mat2);
         assert!(mat3
             .data
@@ -529,8 +557,8 @@ mod tests {
 
     #[test]
     fn test_subtract_matrices() {
-        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
-        let mat2 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat1 = Matrix::randn(100, 200, 0.0, 1.0);
+        let mat2 = Matrix::randn(100, 200, 0.0, 1.0);
         let mat3 = subtract_matrices(&mat1, &mat2);
         assert!(mat3
             .data
@@ -544,8 +572,8 @@ mod tests {
 
     #[test]
     fn test_multiply_matrices() {
-        let mat1 = Matrix::rand(100, 200, 0.0, 1.0);
-        let mat2 = Matrix::rand(100, 200, 0.0, 1.0);
+        let mat1 = Matrix::randn(100, 200, 0.0, 1.0);
+        let mat2 = Matrix::randn(100, 200, 0.0, 1.0);
         let mat3 = multiply_matrices(&mat1, &mat2);
         assert!(mat3
             .data

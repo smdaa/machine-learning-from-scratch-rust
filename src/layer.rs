@@ -16,7 +16,7 @@ impl Dense {
             in_size: in_size,
             out_size: out_size,
             batch_size: batch_size,
-            w: Matrix::rand(in_size, out_size, 0.0, std_dev),
+            w: Matrix::randn(in_size, out_size, 0.0, std_dev),
             b: Matrix::new(batch_size, out_size, 0.0),
         }
     }

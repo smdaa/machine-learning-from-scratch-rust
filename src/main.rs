@@ -54,21 +54,31 @@ pub fn un_batch(batches: &Vec<Matrix>) -> Matrix {
     }
 }
 
+
 fn main() {
     let in_size = 3;
     let hidden_size = 64;
     let out_size = 3;
-    let batch_size = 32;
+    let batch_size = 256;
 
-    let dense1 = Dense::new(in_size, hidden_size, batch_size);
-    let dense2 = Dense::new(hidden_size, hidden_size, batch_size);
-    let dense3 = Dense::new(hidden_size, hidden_size, batch_size);
-    let dense4 = Dense::new(hidden_size, hidden_size, batch_size);
-    let dense5 = Dense::new(hidden_size, hidden_size, batch_size);
-    let dense6 = Dense::new(hidden_size, out_size, batch_size);
+    let size_w: usize = 1920;
+    let size_h: usize = 1080;
 
-    let size_w: usize = 512;
-    let size_h: usize = 512;
+    // Create Layers
+    let mut dense1 = Dense::new(in_size, hidden_size, batch_size);
+    let mut dense2 = Dense::new(hidden_size, hidden_size, batch_size);
+    let mut dense3 = Dense::new(hidden_size, hidden_size, batch_size);
+    let mut dense4 = Dense::new(hidden_size, hidden_size, batch_size);
+    let mut dense5 = Dense::new(hidden_size, hidden_size, batch_size);
+    let mut dense6 = Dense::new(hidden_size, out_size, batch_size);
+
+    // Change initial weights to truncated normal to have something pretty 
+    dense1.w = Matrix::randn_truncated(dense1.w.n_rows, dense1.w.n_columns, 0.0, 1.0, -2.0, 2.0);
+    dense2.w = Matrix::randn_truncated(dense2.w.n_rows, dense2.w.n_columns, 0.0, 1.0, -2.0, 2.0);
+    dense3.w = Matrix::randn_truncated(dense3.w.n_rows, dense3.w.n_columns, 0.0, 1.0, -2.0, 2.0);
+    dense4.w = Matrix::randn_truncated(dense4.w.n_rows, dense4.w.n_columns, 0.0, 1.0, -2.0, 2.0);
+    dense5.w = Matrix::randn_truncated(dense5.w.n_rows, dense5.w.n_columns, 0.0, 1.0, -2.0, 2.0);
+    dense6.w = Matrix::randn_truncated(dense6.w.n_rows, dense6.w.n_columns, 0.0, 1.0, -2.0, 2.0);
 
     // Create dataset
     let start = Instant::now();
@@ -76,9 +86,9 @@ fn main() {
     for i in 0..size_h {
         for j in 0..size_w {
             x.data[i * size_w + j] = vec![
-                (i / size_h) as f64 - 0.5,
-                (j / size_w) as f64 - 0.5,
-                (((i / size_h) as f64 - 0.5).powf(2.0) + ((j / size_w) as f64 - 0.5).powf(2.0))
+                (i as f64 / size_h as f64) - 0.5,
+                (j as f64 / size_w as f64) - 0.5,
+                (((i as f64 / size_h as f64) - 0.5).powf(2.0) + ((j as f64 / size_w as f64)- 0.5).powf(2.0))
                     .sqrt(),
             ];
         }
@@ -137,11 +147,11 @@ fn main() {
         for j in 0..size_w {
             let red = (255.0 * y.data[i * size_w + j][0]) as u8;
             let green = (255.0 * y.data[i * size_w + j][1]) as u8;
-            let blue = (255.0 * y.data[i * size_w + j][2]) as u8;
-
-            *image.get_pixel_mut(i.try_into().unwrap(), j.try_into().unwrap()) =
-                image::Rgb([red, green, blue]);
+            let blue = (255.0 * y.data[i * size_w + j][2]) as u8;          
+            *image.get_pixel_mut(j.try_into().unwrap(), i.try_into().unwrap()) =
+                image::Rgb([red, green, blue]);                
         }
     }
     image.save("output.png").unwrap();
+
 }
