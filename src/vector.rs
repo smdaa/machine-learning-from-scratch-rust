@@ -1,4 +1,4 @@
-use rand_distr::{Normal, Distribution};
+use rand_distr::{Distribution, Normal};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::vec;
@@ -10,13 +10,13 @@ pub struct Vector {
 
 impl Vector {
     pub fn new(size: usize, value: f64) -> Self {
-        Vector {
+        Self {
             size: size,
             data: vec![value; size],
         }
     }
 
-    pub fn randn(size: usize, mean:f64, std_dev:f64) -> Self {
+    pub fn randn(size: usize, mean: f64, std_dev: f64) -> Self {
         let mut rng = rand::thread_rng();
         let normal = Normal::new(mean, std_dev).unwrap();
         let data = (0..size).map(|_| normal.sample(&mut rng)).collect();
@@ -26,29 +26,12 @@ impl Vector {
         }
     }
 
-    pub fn from_txt(path: &str) -> Self {
-        let file = File::open(path).expect("Could not open file");
-        let reader = BufReader::new(file);
-        let mut data: Vec<f64> = Vec::new();
-        for line in reader.lines() {
-            let line = line.expect("Could not read line");
-            let num = line.trim().parse::<f64>().expect("Could not parse number");
-            data.push(num);
-        }
-        Vector {
-            size: data.len(),
-            data,
-        }
-    }
-
     pub fn from_str(string: &str) -> Self {
-        let mut data = Vec::new();
-        for item in string.split(" ") {
-            if let Ok(num) = item.trim().parse::<f64>() {
-                data.push(num);
-            }
-        }
-        Vector {
+        let data: Vec<f64> = string
+            .split(" ")
+            .filter_map(|v| v.trim().parse::<f64>().ok())
+            .collect();
+        Self {
             size: data.len(),
             data,
         }
@@ -61,22 +44,23 @@ impl Vector {
     pub fn copy(&self) -> Self {
         let new_data = self.data.clone();
 
-        Vector {
+        Self {
             size: self.size,
             data: new_data,
         }
     }
 
-    pub fn is_equal(&self, vec: &Vector) -> bool {
-        self.size == vec.size && self.data.iter().zip(vec.data.iter()).all(|(x, y)| *x == *y)
+    pub fn is_equal(&self, vec: &Self) -> bool {
+        self.size == vec.size && self.data.iter().zip(vec.data.iter()).all(|(&a, &b)| a == b)
     }
 }
 
 pub fn element_wise_operation_vector(vec: &Vector, op: impl Fn(f64) -> f64) -> Vector {
-    let mut new_vec = vec.copy();
-    new_vec.data.iter_mut().for_each(|x| *x = op(*x));
-
-    new_vec
+    let data = vec.data.iter().map(|&x| op(x)).collect();
+    Vector {
+        size: vec.size,
+        data: data,
+    }
 }
 
 pub fn add_scalar_vector(scalar: f64, vec: &Vector) -> Vector {
@@ -97,12 +81,17 @@ pub fn element_wise_operation_vectors(
     op: impl Fn(f64, f64) -> f64,
 ) -> Vector {
     assert_eq!(vec1.size, vec2.size, "Matrix shapes must match");
-    let mut vec = vec1.copy();
-    vec.data
-        .iter_mut()
+    let data = vec1
+        .data
+        .iter()
         .zip(vec2.data.iter())
-        .for_each(|(a, b)| *a = op(*a, *b));
-    vec
+        .map(|(&a, &b)| op(a, b))
+        .collect();
+
+    Vector {
+        size: vec1.size,
+        data: data,
+    }
 }
 
 pub fn add_vectors(vec1: &Vector, vec2: &Vector) -> Vector {
@@ -120,7 +109,7 @@ pub fn dot_vector_vector(vec1: &Vector, vec2: &Vector) -> f64 {
     vec1.data
         .iter()
         .zip(vec2.data.iter())
-        .map(|(x, y)| x * y)
+        .map(|(&x, &y)| x * y)
         .sum()
 }
 
@@ -132,6 +121,13 @@ pub fn mean_vector(vec: &Vector) -> f64 {
     sum_vector(vec) / vec.size as f64
 }
 
+pub fn std_dev_vector(vec: &Vector) -> f64 {
+    let mean = mean_vector(&vec);
+    let n = vec.size as f64;
+    let x: f64 = vec.data.iter().map(|&x| (x - mean).abs().powf(2.0)).sum();
+    (x / n).sqrt()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,126 +136,116 @@ mod tests {
     fn test_new_vector() {
         let vec = Vector::new(100, 1.0);
         assert_eq!(vec.size, 100);
-        assert!(vec.data.iter().all(|x| *x == 1.0));
+        assert!(vec.data.iter().all(|&x| x == 1.0));
     }
 
     #[test]
     fn test_rand_vector() {
-        let vec = Vector::randn(10000, 0.0, 1.0);
-        assert_eq!(vec.size, 10000);
-        assert_eq!(mean_vector(&vec).round(), 0.0);
+        let vec = Vector::randn(100000, 0.0, 1.0);
+        assert_eq!(vec.size, 100000);
+        assert!(mean_vector(&vec) < 10f64.powi(-(2 as i32)));
+        assert!((std_dev_vector(&vec) - 1.0).abs() < 10f64.powi(-(2 as i32)));
     }
 
     #[test]
     fn test_from_str_vector() {
         let vec = Vector::from_str("1.0 1.0 1.0 1.0 1.0 1.0");
         assert_eq!(vec.size, 6);
-        assert!(vec.data.iter().all(|x| *x == 1.0));
+        assert!(vec.data.iter().all(|&x| x == 1.0));
+        let vec = Vector::from_str("x y z");
+        assert_eq!(vec.size, 0);
+        let vec = Vector::from_str("x y z 2 t 3");
+        assert_eq!(vec.size, 2);
+        assert_eq!(vec.data[0], 2.0);
+        assert_eq!(vec.data[1], 3.0);
     }
 
     #[test]
     fn test_copy_vector() {
-        let vec = Vector::randn(100, 0.0, 1.0);
-        let vec_copy = vec.copy();
+        let vec = Vector::new(100, 1.0);
+        let mut vec_copy = vec.copy();
         assert_eq!(vec.size, vec_copy.size);
         assert!(vec
             .data
             .iter()
             .zip(vec_copy.data.iter())
-            .all(|(x, y)| *x == *y));
+            .all(|(&x, &y)| x == y));
+        vec_copy = add_scalar_vector(2.0, &vec_copy);
+        assert!(vec
+            .data
+            .iter()
+            .zip(vec_copy.data.iter())
+            .all(|(&x, &y)| x == y - 2.0));
+    }
+    #[test]
+    fn test_is_equal_vector() {
+        let vec1 = Vector::from_str("1.0 1.0 1.0 1.0 1.0 1.0");
+        let vec2 = Vector::from_str("1.0 1.0 1.0 1.0 2.0 1.0");
+        let vec3 = Vector::from_str("1.0 1.0 1.0 1.0 1.0 1.0");
+        let vec4 = Vector::from_str("1.0 1.0 1.0 1.0 1.0");
+        assert_eq!(vec1.is_equal(&vec2), false);
+        assert_eq!(vec1.is_equal(&vec3), true);
+        assert_eq!(vec1.is_equal(&vec4), false);
     }
 
     #[test]
     fn test_element_wise_operation_vector() {
-        let vec1 = Vector::randn(100, 0.0, 1.0);
+        let vec1 = Vector::new(100, 2.0);
         let vec2 = element_wise_operation_vector(&vec1, |x| 2.0 * x + 1.0);
-        assert_eq!(vec1.size, vec2.size);
-        assert!(vec1
-            .data
-            .iter()
-            .zip(vec2.data.iter())
-            .all(|(x, y)| *y == *x * 2.0 + 1.0));
+        assert!(vec2.is_equal(&Vector::new(vec2.size, 5.0)));
     }
 
     #[test]
     fn test_add_scalar_vector() {
-        let vec1 = Vector::randn(100, 0.0, 1.0);
-        let vec2 = add_scalar_vector(2.0, &vec1);
-        assert!(vec1
-            .data
-            .iter()
-            .zip(vec2.data.iter())
-            .all(|(x, y)| *y == 2.0 + *x));
+        let vec1 = Vector::new(100, 2.0);
+        let vec2 = add_scalar_vector(3.0, &vec1);
+        assert!(vec2.is_equal(&Vector::new(vec2.size, 5.0)));
     }
 
     #[test]
     fn test_subtract_scalar_vector() {
-        let vec1 = Vector::randn(100, 0.0, 1.0);
+        let vec1 = Vector::new(100, 2.0);
         let vec2 = subtract_scalar_vector(2.0, &vec1);
-        assert!(vec1
-            .data
-            .iter()
-            .zip(vec2.data.iter())
-            .all(|(x, y)| *y == *x - 2.0));
+        assert!(vec2.is_equal(&Vector::new(vec2.size, 0.0)));
     }
 
     #[test]
     fn test_multiply_scalar_vector() {
-        let vec1 = Vector::randn(100, 0.0, 1.0);
+        let vec1 = Vector::new(100, 2.0);
         let vec2 = multiply_scalar_vector(2.0, &vec1);
-        assert!(vec1
-            .data
-            .iter()
-            .zip(vec2.data.iter())
-            .all(|(x, y)| *y == *x * 2.0));
+        assert!(vec2.is_equal(&Vector::new(vec2.size, 4.0)));
     }
 
     #[test]
     fn test_element_wise_operation_vectors() {
-        let vec1 = Vector::randn(100, 0.0, 1.0);
-        let vec2 = Vector::randn(100, 0.0, 1.0);
+        let vec1 = Vector::new(100, 2.0);
+        let vec2 = Vector::new(100, 3.0);
         let vec3 = element_wise_operation_vectors(&vec1, &vec2, |x, y| x * 2.0 + y);
-        assert!(vec3
-            .data
-            .iter()
-            .zip(vec1.data.iter().zip(vec2.data.iter()))
-            .all(|(z, (x, y))| *z == *y + *x * 2.0));
+        assert!(vec3.is_equal(&Vector::new(vec3.size, 7.0)));
     }
 
     #[test]
     fn test_add_vectors() {
-        let vec1 = Vector::randn(100, 0.0, 1.0);
-        let vec2 = Vector::randn(100, 0.0, 1.0);
+        let vec1 = Vector::new(100, 2.0);
+        let vec2 = Vector::new(100, 3.0);
         let vec3 = add_vectors(&vec1, &vec2);
-        assert!(vec3
-            .data
-            .iter()
-            .zip(vec1.data.iter().zip(vec2.data.iter()))
-            .all(|(z, (x, y))| *z == *y + *x));
+        assert!(vec3.is_equal(&Vector::new(vec3.size, 5.0)));
     }
 
     #[test]
     fn test_subtract_vectors() {
-        let vec1 = Vector::randn(100, 0.0, 1.0);
-        let vec2 = Vector::randn(100, 0.0, 1.0);
+        let vec1 = Vector::new(100, 2.0);
+        let vec2 = Vector::new(100, 3.0);
         let vec3 = subtract_vectors(&vec1, &vec2);
-        assert!(vec3
-            .data
-            .iter()
-            .zip(vec1.data.iter().zip(vec2.data.iter()))
-            .all(|(z, (x, y))| *z == *x - *y));
+        assert!(vec3.is_equal(&Vector::new(vec3.size, -1.0)));
     }
 
     #[test]
     fn test_multiply_vectors() {
-        let vec1 = Vector::randn(100, 0.0, 1.0);
-        let vec2 = Vector::randn(100, 0.0, 1.0);
+        let vec1 = Vector::new(100, 2.0);
+        let vec2 = Vector::new(100, 3.0);
         let vec3 = multiply_vectors(&vec1, &vec2);
-        assert!(vec3
-            .data
-            .iter()
-            .zip(vec1.data.iter().zip(vec2.data.iter()))
-            .all(|(z, (x, y))| *z == *x * *y));
+        assert!(vec3.is_equal(&Vector::new(vec3.size, 6.0)));
     }
 
     #[test]
@@ -279,5 +265,11 @@ mod tests {
     fn test_mean_vector() {
         let vec = Vector::new(100, 1.0);
         assert_eq!(mean_vector(&vec), 1.0);
+    }
+
+    #[test]
+    fn test_std_dev_vector() {
+        let vec = Vector::from_str("6 2 3 1");
+        assert!((std_dev_vector(&vec) - 1.87).abs() < 10f64.powi(-(2 as i32)));
     }
 }

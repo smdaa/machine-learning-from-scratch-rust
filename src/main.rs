@@ -13,7 +13,7 @@ use matrix::*;
 use vector::*;
 
 use image::{ImageBuffer, RgbImage};
-use std::time::{Duration, Instant};
+use std::{time::{Duration, Instant}, process::exit};
 
 pub fn create_batches(x: &Matrix, batch_size: usize) -> Vec<Matrix> {
     let n_rows = x.n_rows;
@@ -56,6 +56,10 @@ pub fn un_batch(batches: &Vec<Matrix>) -> Matrix {
 
 
 fn main() {
+    let vec = Vector::randn(10000, 0.0, 1.0);
+    println!("{:?}", std_dev_vector(&vec));
+    println!("{:?}", 10f64.powi(-(2 as i32)));
+    exit(0);
     let in_size = 3;
     let hidden_size = 64;
     let out_size = 3;
