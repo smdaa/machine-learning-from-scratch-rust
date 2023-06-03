@@ -3,18 +3,18 @@
 #![allow(unused_imports)]
 
 mod activation_function;
-mod layer;
-mod matrix;
 mod vector;
+mod matrix;
+mod layer;
 
 use activation_function::*;
-use layer::*;
-use matrix::*;
 use vector::*;
+use matrix::*;
+use layer::*;
 
 use image::{ImageBuffer, RgbImage};
 use std::{
-    time::{Duration, Instant},
+    time::{Duration, Instant}, process::exit,
 };
 
 pub fn create_batches(x: &Matrix, batch_size: usize) -> Vec<Matrix> {
@@ -57,7 +57,7 @@ pub fn un_batch(batches: &Vec<Matrix>) -> Matrix {
 
 fn main() {
     let in_size = 3;
-    let hidden_size = 64;
+    let hidden_size = 1024;
     let out_size = 3;
     let batch_size = 512;
 

@@ -1,8 +1,9 @@
 use rand_distr::{Distribution, Normal};
+use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::marker::Sync;
 use std::vec;
-
 pub struct Vector {
     pub size: usize,
     pub data: Vec<f64>,
@@ -17,9 +18,11 @@ impl Vector {
     }
 
     pub fn randn(size: usize, mean: f64, std_dev: f64) -> Self {
-        let mut rng = rand::thread_rng();
         let normal = Normal::new(mean, std_dev).unwrap();
-        let data = (0..size).map(|_| normal.sample(&mut rng)).collect();
+        let data = (0..size)
+            .into_par_iter()
+            .map(|_| normal.sample(&mut rand::thread_rng()))
+            .collect();
         Self {
             size: size,
             data: data,
@@ -55,8 +58,8 @@ impl Vector {
     }
 }
 
-pub fn element_wise_operation_vector(vec: &Vector, op: impl Fn(f64) -> f64) -> Vector {
-    let data = vec.data.iter().map(|&x| op(x)).collect();
+pub fn element_wise_operation_vector(vec: &Vector, op: impl Fn(f64) -> f64 + Sync) -> Vector {
+    let data = vec.data.par_iter().map(|&x| op(x)).collect();
     Vector {
         size: vec.size,
         data: data,
@@ -78,13 +81,13 @@ pub fn multiply_scalar_vector(scalar: f64, vec: &Vector) -> Vector {
 pub fn element_wise_operation_vectors(
     vec1: &Vector,
     vec2: &Vector,
-    op: impl Fn(f64, f64) -> f64,
+    op: impl Fn(f64, f64) -> f64 +Sync,
 ) -> Vector {
     assert_eq!(vec1.size, vec2.size, "Matrix shapes must match");
     let data = vec1
         .data
-        .iter()
-        .zip(vec2.data.iter())
+        .par_iter()
+        .zip(vec2.data.par_iter())
         .map(|(&a, &b)| op(a, b))
         .collect();
 
@@ -107,14 +110,14 @@ pub fn multiply_vectors(vec1: &Vector, vec2: &Vector) -> Vector {
 pub fn dot_vector_vector(vec1: &Vector, vec2: &Vector) -> f64 {
     assert_eq!(vec1.size, vec2.size);
     vec1.data
-        .iter()
-        .zip(vec2.data.iter())
+        .par_iter()
+        .zip(vec2.data.par_iter())
         .map(|(&x, &y)| x * y)
         .sum()
 }
 
 pub fn sum_vector(vec: &Vector) -> f64 {
-    vec.data.iter().sum()
+    vec.data.par_iter().sum()
 }
 
 pub fn mean_vector(vec: &Vector) -> f64 {
@@ -124,7 +127,7 @@ pub fn mean_vector(vec: &Vector) -> f64 {
 pub fn std_dev_vector(vec: &Vector) -> f64 {
     let mean = mean_vector(&vec);
     let n = vec.size as f64;
-    let x: f64 = vec.data.iter().map(|&x| (x - mean).abs().powf(2.0)).sum();
+    let x: f64 = vec.data.par_iter().map(|&x| (x - mean).abs().powf(2.0)).sum();
     (x / n).sqrt()
 }
 
