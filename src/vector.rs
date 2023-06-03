@@ -140,7 +140,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rand_vector() {
+    fn test_randn_vector() {
         let vec = Vector::randn(100000, 0.0, 1.0);
         assert_eq!(vec.size, 100000);
         assert!(mean_vector(&vec) < 10f64.powi(-(2 as i32)));

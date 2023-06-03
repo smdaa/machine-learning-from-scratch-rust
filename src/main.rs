@@ -13,7 +13,9 @@ use matrix::*;
 use vector::*;
 
 use image::{ImageBuffer, RgbImage};
-use std::{time::{Duration, Instant}, process::exit};
+use std::{
+    time::{Duration, Instant},
+};
 
 pub fn create_batches(x: &Matrix, batch_size: usize) -> Vec<Matrix> {
     let n_rows = x.n_rows;
@@ -37,33 +39,27 @@ pub fn create_batches(x: &Matrix, batch_size: usize) -> Vec<Matrix> {
 }
 
 pub fn un_batch(batches: &Vec<Matrix>) -> Matrix {
+    let num_batches = batches.len();
+    assert!(num_batches > 0, "batches must not be empty");
+    let n_rows = batches[0].n_rows;
     let n_columns = batches[0].n_columns;
-    let n_rows = batches.iter().map(|mat| mat.n_rows).sum();
-
-    let mut data = Vec::new();
-    for mat in batches {
-        for row in &mat.data {
-            data.push(row.to_vec());
-        }
-    }
-
+    let total_rows = n_rows * num_batches;
+    let data: Vec<f64> = batches
+        .iter()
+        .flat_map(|batch| batch.data.iter().cloned())
+        .collect();
     Matrix {
-        n_rows: n_rows,
-        n_columns: n_columns,
-        data: data,
+        n_rows: total_rows,
+        n_columns,
+        data,
     }
 }
 
-
 fn main() {
-    let vec = Vector::randn(10000, 0.0, 1.0);
-    println!("{:?}", std_dev_vector(&vec));
-    println!("{:?}", 10f64.powi(-(2 as i32)));
-    exit(0);
     let in_size = 3;
     let hidden_size = 64;
     let out_size = 3;
-    let batch_size = 256;
+    let batch_size = 512;
 
     let size_w: usize = 1920;
     let size_h: usize = 1080;
@@ -76,7 +72,7 @@ fn main() {
     let mut dense5 = Dense::new(hidden_size, hidden_size, batch_size);
     let mut dense6 = Dense::new(hidden_size, out_size, batch_size);
 
-    // Change initial weights to truncated normal to have something pretty 
+    // Change initial weights to truncated normal to have something pretty
     dense1.w = Matrix::randn_truncated(dense1.w.n_rows, dense1.w.n_columns, 0.0, 1.0, -2.0, 2.0);
     dense2.w = Matrix::randn_truncated(dense2.w.n_rows, dense2.w.n_columns, 0.0, 1.0, -2.0, 2.0);
     dense3.w = Matrix::randn_truncated(dense3.w.n_rows, dense3.w.n_columns, 0.0, 1.0, -2.0, 2.0);
@@ -89,12 +85,10 @@ fn main() {
     let mut x = Matrix::new(size_w * size_h, in_size, 0.0);
     for i in 0..size_h {
         for j in 0..size_w {
-            x.data[i * size_w + j] = vec![
-                (i as f64 / size_h as f64) - 0.5,
-                (j as f64 / size_w as f64) - 0.5,
-                (((i as f64 / size_h as f64) - 0.5).powf(2.0) + ((j as f64 / size_w as f64)- 0.5).powf(2.0))
-                    .sqrt(),
-            ];
+            x.data[(i * size_w + j) * x.n_columns + 0] = (i as f64 / size_h as f64) - 0.5;
+            x.data[(i * size_w + j) * x.n_columns + 1] = (j as f64 / size_w as f64) - 0.5;
+            x.data[(i * size_w + j) * x.n_columns + 2] = (((i as f64 / size_h as f64) - 0.5).powf(2.0) + ((j as f64 / size_w as f64)- 0.5).powf(2.0))
+            .sqrt();
         }
     }
     let duration = start.elapsed();
@@ -149,13 +143,12 @@ fn main() {
 
     for i in 0..size_h {
         for j in 0..size_w {
-            let red = (255.0 * y.data[i * size_w + j][0]) as u8;
-            let green = (255.0 * y.data[i * size_w + j][1]) as u8;
-            let blue = (255.0 * y.data[i * size_w + j][2]) as u8;          
+            let red = (255.0 * y.data[(i * size_w + j) * y.n_columns + 0]) as u8;
+            let green = (255.0 * y.data[(i * size_w + j) * y.n_columns + 1]) as u8;
+            let blue = (255.0 * y.data[(i * size_w + j) * y.n_columns + 2]) as u8;
             *image.get_pixel_mut(j.try_into().unwrap(), i.try_into().unwrap()) =
-                image::Rgb([red, green, blue]);                
+            image::Rgb([red, green, blue]);
         }
     }
     image.save("output.png").unwrap();
-
 }
