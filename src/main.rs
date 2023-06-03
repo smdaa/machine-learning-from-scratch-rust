@@ -20,11 +20,11 @@ use std::{
 
 fn main() {
     let in_size = 3;
-    let hidden_size = 64;
+    let hidden_size = 128;
     let out_size = 3;
 
-    let size_w: usize = 1024;
-    let size_h: usize = 1024;
+    let size_w: usize = 512;
+    let size_h: usize = 512;
 
     let batch_size = size_h * size_w;
 
@@ -37,12 +37,12 @@ fn main() {
     let mut dense6 = Dense::new(hidden_size, out_size, batch_size);
 
     // Change initial weights to truncated normal to have something pretty
-    dense1.w = Matrix::randn_truncated(dense1.w.n_rows, dense1.w.n_columns, 0.0, 1.0, -2.0, 2.0);
-    dense2.w = Matrix::randn_truncated(dense2.w.n_rows, dense2.w.n_columns, 0.0, 1.0, -2.0, 2.0);
-    dense3.w = Matrix::randn_truncated(dense3.w.n_rows, dense3.w.n_columns, 0.0, 1.0, -2.0, 2.0);
-    dense4.w = Matrix::randn_truncated(dense4.w.n_rows, dense4.w.n_columns, 0.0, 1.0, -2.0, 2.0);
-    dense5.w = Matrix::randn_truncated(dense5.w.n_rows, dense5.w.n_columns, 0.0, 1.0, -2.0, 2.0);
-    dense6.w = Matrix::randn_truncated(dense6.w.n_rows, dense6.w.n_columns, 0.0, 1.0, -2.0, 2.0);
+    dense1.w = Matrix::randn_truncated(dense1.w.n_rows, dense1.w.n_columns, 0.0, 0.5, -2.0, 2.0);
+    dense2.w = Matrix::randn_truncated(dense2.w.n_rows, dense2.w.n_columns, 0.0, 0.5, -2.0, 2.0);
+    dense3.w = Matrix::randn_truncated(dense3.w.n_rows, dense3.w.n_columns, 0.0, 0.5, -2.0, 2.0);
+    dense4.w = Matrix::randn_truncated(dense4.w.n_rows, dense4.w.n_columns, 0.0, 0.5, -2.0, 2.0);
+    dense5.w = Matrix::randn_truncated(dense5.w.n_rows, dense5.w.n_columns, 0.0, 0.5, -2.0, 2.0);
+    dense6.w = Matrix::randn_truncated(dense6.w.n_rows, dense6.w.n_columns, 0.0, 0.5, -2.0, 2.0);
 
     // Create dataset
     let start = Instant::now();
