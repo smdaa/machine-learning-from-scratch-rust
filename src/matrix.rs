@@ -1,6 +1,8 @@
 use rand_distr::{Distribution, Normal};
+use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::marker::Sync;
 use std::vec;
 
 pub struct Matrix {
@@ -20,6 +22,7 @@ impl Matrix {
 
     pub fn eye(size: usize) -> Self {
         let data = (0..size * size)
+            .into_par_iter()
             .map(|i| if i % (size + 1) == 0 { 1.0 } else { 0.0 })
             .collect();
 
@@ -31,10 +34,10 @@ impl Matrix {
     }
 
     pub fn randn(n_rows: usize, n_columns: usize, mean: f64, std_dev: f64) -> Self {
-        let mut rng = rand::thread_rng();
         let normal = Normal::new(mean, std_dev).unwrap();
         let data = (0..n_columns * n_rows)
-            .map(|_| normal.sample(&mut rng))
+            .into_par_iter()
+            .map(|_| normal.sample(&mut rand::thread_rng()))
             .collect();
 
         Self {
@@ -52,10 +55,9 @@ impl Matrix {
         lo: f64,
         hi: f64,
     ) -> Self {
-        let mut rng = rand::thread_rng();
         let normal = Normal::new(mean, std_dev).unwrap();
         let data: Vec<f64> = normal
-            .sample_iter(&mut rng)
+            .sample_iter(&mut rand::thread_rng())
             .filter(|&value| lo <= value && value <= hi)
             .take(n_rows * n_columns)
             .collect();
@@ -152,7 +154,7 @@ pub fn slice(
     }
 }
 
-pub fn dot_matrix_matrix(mat1: &Matrix, mat2: &Matrix) -> Matrix {
+pub fn dot_matrix_matrix_naive(mat1: &Matrix, mat2: &Matrix) -> Matrix {
     assert_eq!(mat1.n_columns, mat2.n_rows);
     let n_rows = mat1.n_rows;
     let n_columns = mat2.n_columns;
@@ -167,12 +169,58 @@ pub fn dot_matrix_matrix(mat1: &Matrix, mat2: &Matrix) -> Matrix {
             mat.data[i * mat.n_columns + j] = acc;
         }
     }
-    
+
     mat
 }
 
-pub fn element_wise_operation_matrix(mat: &Matrix, op: impl Fn(f64) -> f64) -> Matrix {
-    let data = mat.data.iter().map(|&x| op(x)).collect();
+pub fn dot_matrix_matrix(mat1: &Matrix, mat2: &Matrix) -> Matrix {
+    fn dot_row_col(row: &Vec<f64>, col: &Vec<f64>) -> f64 {
+        row.iter().zip(col.iter()).map(|(&a, &b)| a * b).sum()
+    }
+    assert_eq!(mat1.n_columns, mat2.n_rows);
+
+    let n_rows = mat1.n_rows;
+    let n_columns = mat2.n_columns;
+
+    let data: Vec<f64> = (0..mat1.n_rows)
+        .into_par_iter()
+        .map(|i| {
+            let row = &mat1
+                .data
+                .iter()
+                .copied()
+                .skip(mat1.n_columns * i)
+                .take(mat1.n_columns)
+                .collect();
+            let mut result_row = Vec::with_capacity(mat2.n_columns);
+
+            for j in 0..mat2.n_columns {
+                let col = &mat2
+                    .data
+                    .iter()
+                    .copied()
+                    .skip(j)
+                    .step_by(mat2.n_columns)
+                    .take(mat2.n_rows)
+                    .collect();
+                let dot_product = dot_row_col(row, col);
+                result_row.push(dot_product);
+            }
+
+            result_row
+        })
+        .flatten()
+        .collect();
+
+    Matrix {
+        n_rows: n_rows,
+        n_columns: n_columns,
+        data: data,
+    }
+}
+
+pub fn element_wise_operation_matrix(mat: &Matrix, op: impl Fn(f64) -> f64 + Sync) -> Matrix {
+    let data = mat.data.par_iter().map(|&x| op(x)).collect();
     Matrix {
         n_rows: mat.n_rows,
         n_columns: mat.n_columns,
@@ -195,7 +243,7 @@ pub fn multiply_scalar_matrix(scalar: f64, mat: &Matrix) -> Matrix {
 pub fn element_wise_operation_matrices(
     mat1: &Matrix,
     mat2: &Matrix,
-    op: impl Fn(f64, f64) -> f64,
+    op: impl Fn(f64, f64) -> f64 + Sync,
 ) -> Matrix {
     assert_eq!(
         (mat1.n_rows, mat1.n_columns),
@@ -204,8 +252,8 @@ pub fn element_wise_operation_matrices(
     );
     let data = mat1
         .data
-        .iter()
-        .zip(mat2.data.iter())
+        .par_iter()
+        .zip(mat2.data.par_iter())
         .map(|(&a, &b)| op(a, b))
         .collect();
     Matrix {
