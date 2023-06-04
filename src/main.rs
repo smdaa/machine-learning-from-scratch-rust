@@ -5,11 +5,15 @@
 mod activation_function;
 mod layer;
 mod matrix;
+mod network;
 mod vector;
 
 use activation_function::*;
 use layer::*;
 use matrix::*;
+use network::*;
+use rayon::iter::ParallelIterator;
+use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator};
 use vector::*;
 
 use image::{ImageBuffer, RgbImage};
@@ -18,71 +22,112 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub fn batch(x: &Matrix, batch_size: usize) -> Vec<Matrix> {
+    let n_rows = x.n_rows;
+    let n_columns = x.n_columns;
+    let n_batches = n_rows / batch_size;
+
+    let batches = (0..n_batches)
+        .map(|i| {
+            let start_idx = i * batch_size;
+            let end_idx = start_idx + batch_size;
+            slice(&x, (start_idx, end_idx - 1), (0, n_columns - 1))
+        })
+        .collect();
+
+    batches
+}
+
+pub fn unbatch(batches: &Vec<Matrix>) -> Matrix {
+    let n_columns = batches[0].n_columns;
+    let n_rows: usize = batches.iter().map(|batch| batch.n_rows).sum();
+    let data: Vec<f32> = batches
+        .iter()
+        .flat_map(|batch| batch.data.clone())
+        .collect();
+
+    Matrix {
+        n_rows,
+        n_columns,
+        data,
+    }
+}
+
 fn main() {
-    let in_size = 3;
-    let hidden_size = 128;
+    // Create Network
+    let start = Instant::now();
+
+    let in_size = 4;
+    let hidden_size = 32;
     let out_size = 3;
-
-    let size_w: usize = 512;
-    let size_h: usize = 512;
-
-    let batch_size = size_h * size_w;
-
-    // Create Layers
-    let mut dense1 = Dense::new(in_size, hidden_size, batch_size);
-    let mut dense2 = Dense::new(hidden_size, hidden_size, batch_size);
-    let mut dense3 = Dense::new(hidden_size, hidden_size, batch_size);
-    let mut dense4 = Dense::new(hidden_size, hidden_size, batch_size);
-    let mut dense5 = Dense::new(hidden_size, hidden_size, batch_size);
-    let mut dense6 = Dense::new(hidden_size, out_size, batch_size);
+    let batch_size = 128;
+    let config = vec![
+        (("dense", in_size, hidden_size, batch_size), "tanh"),
+        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
+        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
+        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
+        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
+        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
+        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
+        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
+        (("dense", hidden_size, out_size, batch_size), "sigmoid"),
+    ];
+    let mut network = Network::new(&config);
+    let duration = start.elapsed();
+    println!("Time elapsed in create network is: {:?}", duration);
 
     // Change initial weights to truncated normal to have something pretty
-    dense1.w = Matrix::randn_truncated(dense1.w.n_rows, dense1.w.n_columns, 0.0, 0.5, -2.0, 2.0);
-    dense2.w = Matrix::randn_truncated(dense2.w.n_rows, dense2.w.n_columns, 0.0, 0.5, -2.0, 2.0);
-    dense3.w = Matrix::randn_truncated(dense3.w.n_rows, dense3.w.n_columns, 0.0, 0.5, -2.0, 2.0);
-    dense4.w = Matrix::randn_truncated(dense4.w.n_rows, dense4.w.n_columns, 0.0, 0.5, -2.0, 2.0);
-    dense5.w = Matrix::randn_truncated(dense5.w.n_rows, dense5.w.n_columns, 0.0, 0.5, -2.0, 2.0);
-    dense6.w = Matrix::randn_truncated(dense6.w.n_rows, dense6.w.n_columns, 0.0, 0.5, -2.0, 2.0);
+    for i in 0..network.layers.len()-1 {
+        network.layers[i].w = Matrix::randn_truncated(
+            network.layers[i].w.n_rows,
+            network.layers[i].w.n_columns,
+            0.0,
+            1.0,
+            -3.0,
+            3.0,
+        );
+    }
+
+    let size_w: usize = 3840;
+    let size_h: usize = 2160;
+    let batch_size = 128;
 
     // Create dataset
     let start = Instant::now();
     let mut x = Matrix::new(size_w * size_h, in_size, 0.0);
     for i in 0..size_h {
         for j in 0..size_w {
-            x.data[(i * size_w + j) * x.n_columns + 0] = (i as f64 / size_h as f64) - 0.5;
-            x.data[(i * size_w + j) * x.n_columns + 1] = (j as f64 / size_w as f64) - 0.5;
-            x.data[(i * size_w + j) * x.n_columns + 2] = (((i as f64 / size_h as f64) - 0.5)
-                .powf(2.0)
-                + ((j as f64 / size_w as f64) - 0.5).powf(2.0))
-            .sqrt();
+            x.data[(i * size_w + j) * x.n_columns] = (i as f32 / size_h as f32).cos();
+            x.data[(i * size_w + j) * x.n_columns + 1] = (j as f32 / size_w as f32).sin();
+            x.data[(i * size_w + j) * x.n_columns + 2] = (i as f32 / size_h as f32).powf(2.0);
+            x.data[(i * size_w + j) * x.n_columns + 3] = (j as f32 / size_w as f32).powf(2.0);
         }
     }
     let duration = start.elapsed();
     println!("Time elapsed in create dataset is: {:?}", duration);
 
+    // Create batches
+    let start = Instant::now();
+    let x_batches = batch(&x, batch_size);
+    let duration = start.elapsed();
+    println!("Time elapsed in create batches is: {:?}", duration);
+
     // Forward passes
     let start = Instant::now();
 
-    let mut y1 = forward_pass_dense(&dense1, &x);
-    y1 = activation_pass(&y1, tanh);
+    let y_batches: Vec<Matrix> = x_batches
+        .par_iter()
+        .map(|x_batch| forward_pass_network(&network, &x_batch))
+        .collect();
+    let duration = start.elapsed();
+    println!("Time elapsed in forward passes is: {:?}", duration);
 
-    let mut y2 = forward_pass_dense(&dense2, &y1);
-    y2 = activation_pass(&y2, tanh);
-
-    let mut y3 = forward_pass_dense(&dense3, &y2);
-    y3 = activation_pass(&y3, tanh);
-
-    let mut y4 = forward_pass_dense(&dense4, &y3);
-    y4 = activation_pass(&y4, tanh);
-
-    let mut y5 = forward_pass_dense(&dense5, &y4);
-    y5 = activation_pass(&y5, tanh);
-
-    let mut y = forward_pass_dense(&dense6, &y5);
-    y = activation_pass(&y, sigmoid);
+    // Unbatch
+    let start = Instant::now();
+    let y = unbatch(&y_batches);
 
     let duration = start.elapsed();
-    println!("Time elapsed in forward loops is: {:?}", duration);
+    println!("Time elapsed in unbatch is: {:?}", duration);
 
     println!("{:?}", x.shape());
     println!("{:?}", y.shape());

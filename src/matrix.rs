@@ -1,18 +1,16 @@
 use rand_distr::{Distribution, Normal};
-use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::marker::Sync;
 use std::vec;
 
 pub struct Matrix {
     pub n_rows: usize,
     pub n_columns: usize,
-    pub data: Vec<f64>,
+    pub data: Vec<f32>,
 }
 
 impl Matrix {
-    pub fn new(n_rows: usize, n_columns: usize, value: f64) -> Self {
+    pub fn new(n_rows: usize, n_columns: usize, value: f32) -> Self {
         Self {
             n_rows: n_rows,
             n_columns: n_columns,
@@ -22,7 +20,6 @@ impl Matrix {
 
     pub fn eye(size: usize) -> Self {
         let data = (0..size * size)
-            .into_par_iter()
             .map(|i| if i % (size + 1) == 0 { 1.0 } else { 0.0 })
             .collect();
 
@@ -33,10 +30,9 @@ impl Matrix {
         }
     }
 
-    pub fn randn(n_rows: usize, n_columns: usize, mean: f64, std_dev: f64) -> Self {
+    pub fn randn(n_rows: usize, n_columns: usize, mean: f32, std_dev: f32) -> Self {
         let normal = Normal::new(mean, std_dev).unwrap();
         let data = (0..n_columns * n_rows)
-            .into_par_iter()
             .map(|_| normal.sample(&mut rand::thread_rng()))
             .collect();
 
@@ -50,13 +46,13 @@ impl Matrix {
     pub fn randn_truncated(
         n_rows: usize,
         n_columns: usize,
-        mean: f64,
-        std_dev: f64,
-        lo: f64,
-        hi: f64,
+        mean: f32,
+        std_dev: f32,
+        lo: f32,
+        hi: f32,
     ) -> Self {
         let normal = Normal::new(mean, std_dev).unwrap();
-        let data: Vec<f64> = normal
+        let data: Vec<f32> = normal
             .sample_iter(&mut rand::thread_rng())
             .filter(|&value| lo <= value && value <= hi)
             .take(n_rows * n_columns)
@@ -72,10 +68,10 @@ impl Matrix {
     pub fn from_str(string: &str) -> Self {
         let n_rows = string.split(",").count();
         let n_columns = string.split(',').next().unwrap().split_whitespace().count();
-        let data: Vec<f64> = string
+        let data: Vec<f32> = string
             .replace(",", "")
             .split(" ")
-            .filter_map(|v| v.trim().parse::<f64>().ok())
+            .filter_map(|v| v.trim().parse::<f32>().ok())
             .collect();
 
         Self {
@@ -103,7 +99,7 @@ impl Matrix {
     }
 
     pub fn copy(&self) -> Self {
-        let new_data: Vec<f64> = self.data.clone();
+        let new_data: Vec<f32> = self.data.clone();
 
         Self {
             n_rows: self.n_rows,
@@ -154,7 +150,7 @@ pub fn slice(
     }
 }
 
-pub fn dot_matrix_matrix_naive(mat1: &Matrix, mat2: &Matrix) -> Matrix {
+pub fn dot_matrix_matrix(mat1: &Matrix, mat2: &Matrix) -> Matrix {
     assert_eq!(mat1.n_columns, mat2.n_rows);
     let n_rows = mat1.n_rows;
     let n_columns = mat2.n_columns;
@@ -173,8 +169,8 @@ pub fn dot_matrix_matrix_naive(mat1: &Matrix, mat2: &Matrix) -> Matrix {
     mat
 }
 
-pub fn dot_matrix_matrix(mat1: &Matrix, mat2: &Matrix) -> Matrix {
-    fn dot_row_col(row: &Vec<f64>, col: &Vec<f64>) -> f64 {
+pub fn dot_matrix_matrix_iter(mat1: &Matrix, mat2: &Matrix) -> Matrix {
+    fn dot_row_col(row: &Vec<f32>, col: &Vec<f32>) -> f32 {
         row.iter().zip(col.iter()).map(|(&a, &b)| a * b).sum()
     }
     assert_eq!(mat1.n_columns, mat2.n_rows);
@@ -182,8 +178,7 @@ pub fn dot_matrix_matrix(mat1: &Matrix, mat2: &Matrix) -> Matrix {
     let n_rows = mat1.n_rows;
     let n_columns = mat2.n_columns;
 
-    let data: Vec<f64> = (0..mat1.n_rows)
-        .into_par_iter()
+    let data: Vec<f32> = (0..mat1.n_rows)
         .map(|i| {
             let row = &mat1
                 .data
@@ -219,8 +214,8 @@ pub fn dot_matrix_matrix(mat1: &Matrix, mat2: &Matrix) -> Matrix {
     }
 }
 
-pub fn element_wise_operation_matrix(mat: &Matrix, op: impl Fn(f64) -> f64 + Sync) -> Matrix {
-    let data = mat.data.par_iter().map(|&x| op(x)).collect();
+pub fn element_wise_operation_matrix(mat: &Matrix, op: impl Fn(f32) -> f32) -> Matrix {
+    let data = mat.data.iter().map(|&x| op(x)).collect();
     Matrix {
         n_rows: mat.n_rows,
         n_columns: mat.n_columns,
@@ -228,22 +223,22 @@ pub fn element_wise_operation_matrix(mat: &Matrix, op: impl Fn(f64) -> f64 + Syn
     }
 }
 
-pub fn add_scalar_matrix(scalar: f64, mat: &Matrix) -> Matrix {
+pub fn add_scalar_matrix(scalar: f32, mat: &Matrix) -> Matrix {
     element_wise_operation_matrix(mat, |x| scalar + x)
 }
 
-pub fn subtract_scalar_matrix(scalar: f64, mat: &Matrix) -> Matrix {
+pub fn subtract_scalar_matrix(scalar: f32, mat: &Matrix) -> Matrix {
     element_wise_operation_matrix(mat, |x| x - scalar)
 }
 
-pub fn multiply_scalar_matrix(scalar: f64, mat: &Matrix) -> Matrix {
+pub fn multiply_scalar_matrix(scalar: f32, mat: &Matrix) -> Matrix {
     element_wise_operation_matrix(mat, |x| scalar * x)
 }
 
 pub fn element_wise_operation_matrices(
     mat1: &Matrix,
     mat2: &Matrix,
-    op: impl Fn(f64, f64) -> f64 + Sync,
+    op: impl Fn(f32, f32) -> f32,
 ) -> Matrix {
     assert_eq!(
         (mat1.n_rows, mat1.n_columns),
@@ -252,8 +247,8 @@ pub fn element_wise_operation_matrices(
     );
     let data = mat1
         .data
-        .par_iter()
-        .zip(mat2.data.par_iter())
+        .iter()
+        .zip(mat2.data.iter())
         .map(|(&a, &b)| op(a, b))
         .collect();
     Matrix {
@@ -309,11 +304,11 @@ mod tests {
         assert_eq!(mat.n_rows, 1000);
         assert_eq!(mat.n_columns, 1000);
         let n = mat.n_rows * mat.n_columns;
-        let mean = mat.data.iter().sum::<f64>() / n as f64;
-        let mut std_dev: f64 = mat.data.iter().map(|&x| (x - mean).abs().powf(2.0)).sum();
-        std_dev = (std_dev / n as f64).sqrt();
-        assert!(mean < 10f64.powi(-(2 as i32)));
-        assert!((std_dev - 1.0).abs() < 10f64.powi(-(2 as i32)));
+        let mean = mat.data.iter().sum::<f32>() / n as f32;
+        let mut std_dev: f32 = mat.data.iter().map(|&x| (x - mean).abs().powf(2.0)).sum();
+        std_dev = (std_dev / n as f32).sqrt();
+        assert!(mean < 10f32.powi(-(2 as i32)));
+        assert!((std_dev - 1.0).abs() < 10f32.powi(-(2 as i32)));
     }
 
     #[test]

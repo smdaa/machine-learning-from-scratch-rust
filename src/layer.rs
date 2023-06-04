@@ -9,8 +9,8 @@ pub struct Dense {
 }
 impl Dense {
     pub fn new(in_size: usize, out_size: usize, batch_size: usize) -> Self {
-        let std_dev = (2.0 / (in_size + out_size) as f64).sqrt();
-        Dense {
+        let std_dev = (2.0 / (in_size + out_size) as f32).sqrt();
+        Self {
             in_size: in_size,
             out_size: out_size,
             batch_size: batch_size,

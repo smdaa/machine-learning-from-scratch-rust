@@ -1,26 +1,23 @@
 use rand_distr::{Distribution, Normal};
-use rayon::prelude::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::marker::Sync;
 use std::vec;
 pub struct Vector {
     pub size: usize,
-    pub data: Vec<f64>,
+    pub data: Vec<f32>,
 }
 
 impl Vector {
-    pub fn new(size: usize, value: f64) -> Self {
+    pub fn new(size: usize, value: f32) -> Self {
         Self {
             size: size,
             data: vec![value; size],
         }
     }
 
-    pub fn randn(size: usize, mean: f64, std_dev: f64) -> Self {
+    pub fn randn(size: usize, mean: f32, std_dev: f32) -> Self {
         let normal = Normal::new(mean, std_dev).unwrap();
         let data = (0..size)
-            .into_par_iter()
             .map(|_| normal.sample(&mut rand::thread_rng()))
             .collect();
         Self {
@@ -30,9 +27,9 @@ impl Vector {
     }
 
     pub fn from_str(string: &str) -> Self {
-        let data: Vec<f64> = string
+        let data: Vec<f32> = string
             .split(" ")
-            .filter_map(|v| v.trim().parse::<f64>().ok())
+            .filter_map(|v| v.trim().parse::<f32>().ok())
             .collect();
         Self {
             size: data.len(),
@@ -58,36 +55,36 @@ impl Vector {
     }
 }
 
-pub fn element_wise_operation_vector(vec: &Vector, op: impl Fn(f64) -> f64 + Sync) -> Vector {
-    let data = vec.data.par_iter().map(|&x| op(x)).collect();
+pub fn element_wise_operation_vector(vec: &Vector, op: impl Fn(f32) -> f32) -> Vector {
+    let data = vec.data.iter().map(|&x| op(x)).collect();
     Vector {
         size: vec.size,
         data: data,
     }
 }
 
-pub fn add_scalar_vector(scalar: f64, vec: &Vector) -> Vector {
+pub fn add_scalar_vector(scalar: f32, vec: &Vector) -> Vector {
     element_wise_operation_vector(vec, |x| scalar + x)
 }
 
-pub fn subtract_scalar_vector(scalar: f64, vec: &Vector) -> Vector {
+pub fn subtract_scalar_vector(scalar: f32, vec: &Vector) -> Vector {
     element_wise_operation_vector(vec, |x| x - scalar)
 }
 
-pub fn multiply_scalar_vector(scalar: f64, vec: &Vector) -> Vector {
+pub fn multiply_scalar_vector(scalar: f32, vec: &Vector) -> Vector {
     element_wise_operation_vector(vec, |x| scalar * x)
 }
 
 pub fn element_wise_operation_vectors(
     vec1: &Vector,
     vec2: &Vector,
-    op: impl Fn(f64, f64) -> f64 +Sync,
+    op: impl Fn(f32, f32) -> f32,
 ) -> Vector {
     assert_eq!(vec1.size, vec2.size, "Matrix shapes must match");
     let data = vec1
         .data
-        .par_iter()
-        .zip(vec2.data.par_iter())
+        .iter()
+        .zip(vec2.data.iter())
         .map(|(&a, &b)| op(a, b))
         .collect();
 
@@ -107,27 +104,27 @@ pub fn multiply_vectors(vec1: &Vector, vec2: &Vector) -> Vector {
     element_wise_operation_vectors(vec1, vec2, |a, b| a * b)
 }
 
-pub fn dot_vector_vector(vec1: &Vector, vec2: &Vector) -> f64 {
+pub fn dot_vector_vector(vec1: &Vector, vec2: &Vector) -> f32 {
     assert_eq!(vec1.size, vec2.size);
     vec1.data
-        .par_iter()
-        .zip(vec2.data.par_iter())
+        .iter()
+        .zip(vec2.data.iter())
         .map(|(&x, &y)| x * y)
         .sum()
 }
 
-pub fn sum_vector(vec: &Vector) -> f64 {
-    vec.data.par_iter().sum()
+pub fn sum_vector(vec: &Vector) -> f32 {
+    vec.data.iter().sum()
 }
 
-pub fn mean_vector(vec: &Vector) -> f64 {
-    sum_vector(vec) / vec.size as f64
+pub fn mean_vector(vec: &Vector) -> f32 {
+    sum_vector(vec) / vec.size as f32
 }
 
-pub fn std_dev_vector(vec: &Vector) -> f64 {
+pub fn std_dev_vector(vec: &Vector) -> f32 {
     let mean = mean_vector(&vec);
-    let n = vec.size as f64;
-    let x: f64 = vec.data.par_iter().map(|&x| (x - mean).abs().powf(2.0)).sum();
+    let n = vec.size as f32;
+    let x: f32 = vec.data.iter().map(|&x| (x - mean).abs().powf(2.0)).sum();
     (x / n).sqrt()
 }
 
@@ -146,8 +143,8 @@ mod tests {
     fn test_randn_vector() {
         let vec = Vector::randn(100000, 0.0, 1.0);
         assert_eq!(vec.size, 100000);
-        assert!(mean_vector(&vec) < 10f64.powi(-(2 as i32)));
-        assert!((std_dev_vector(&vec) - 1.0).abs() < 10f64.powi(-(2 as i32)));
+        assert!(mean_vector(&vec) < 10f32.powi(-(2 as i32)));
+        assert!((std_dev_vector(&vec) - 1.0).abs() < 10f32.powi(-(2 as i32)));
     }
 
     #[test]
@@ -273,6 +270,6 @@ mod tests {
     #[test]
     fn test_std_dev_vector() {
         let vec = Vector::from_str("6 2 3 1");
-        assert!((std_dev_vector(&vec) - 1.87).abs() < 10f64.powi(-(2 as i32)));
+        assert!((std_dev_vector(&vec) - 1.87).abs() < 10f32.powi(-(2 as i32)));
     }
 }
