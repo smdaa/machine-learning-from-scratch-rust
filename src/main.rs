@@ -66,8 +66,8 @@ fn main() {
         (("dense", hidden_size, hidden_size, batch_size), "tanh"),
         (("dense", hidden_size, hidden_size, batch_size), "tanh"),
         (("dense", hidden_size, hidden_size, batch_size), "tanh"),
-        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
-        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
+        (("dense", hidden_size, hidden_size, batch_size), "sigmoid"),
+        (("dense", hidden_size, hidden_size, batch_size), "sigmoid"),
         (("dense", hidden_size, hidden_size, batch_size), "tanh"),
         (("dense", hidden_size, hidden_size, batch_size), "tanh"),
         (("dense", hidden_size, out_size, batch_size), "sigmoid"),
@@ -139,9 +139,15 @@ fn main() {
 
     for i in 0..size_h {
         for j in 0..size_w {
-            let red = (255.0 * y.data[(i * size_w + j) * y.n_columns + 0]) as u8;
-            let green = (255.0 * y.data[(i * size_w + j) * y.n_columns + 1]) as u8;
-            let blue = (255.0 * y.data[(i * size_w + j) * y.n_columns + 2]) as u8;
+            let val0 = y.data[(i * size_w + j) * y.n_columns + 0];
+            let val1 = y.data[(i * size_w + j) * y.n_columns + 1];
+            let val2 = y.data[(i * size_w + j) * y.n_columns + 2];
+
+            let red = (255.0*val0) as u8;
+            let green =(255.0*val1) as u8;
+            let blue = (255.0*val2) as u8;
+
+
             *image.get_pixel_mut(j.try_into().unwrap(), i.try_into().unwrap()) =
                 image::Rgb([red, green, blue]);
         }

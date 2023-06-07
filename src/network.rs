@@ -23,6 +23,7 @@ impl Network {
             match *activation_fn {
                 "tanh" => activations.push(tanh as fn(&Matrix) -> Matrix),
                 "sigmoid" => activations.push(sigmoid as fn(&Matrix) -> Matrix),
+                "softmax" => activations.push(softmax as fn(&Matrix) -> Matrix),
                 _ => panic!("Invalid activation function: {}", activation_fn),
             }
         }
