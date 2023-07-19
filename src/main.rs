@@ -2,19 +2,17 @@
 #![allow(unused_variables)]
 #![allow(unused_imports)]
 
-mod activation_function;
+mod activation_functions;
+mod cost_functions;
 mod layer;
 mod matrix;
 mod network;
-mod vector;
 
-use activation_function::*;
+use activation_functions::*;
+use cost_functions::*;
 use layer::*;
 use matrix::*;
 use network::*;
-use rayon::iter::ParallelIterator;
-use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator};
-use vector::*;
 
 use image::{ImageBuffer, RgbImage};
 use std::{
@@ -60,24 +58,25 @@ fn main() {
     let in_size = 4;
     let hidden_size = 32;
     let out_size = 3;
-    let batch_size = 128;
+    let batch_size = 2;
     let config = vec![
-        (("dense", in_size, hidden_size, batch_size), "tanh"),
-        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
-        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
-        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
-        (("dense", hidden_size, hidden_size, batch_size), "sigmoid"),
-        (("dense", hidden_size, hidden_size, batch_size), "sigmoid"),
-        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
-        (("dense", hidden_size, hidden_size, batch_size), "tanh"),
-        (("dense", hidden_size, out_size, batch_size), "sigmoid"),
+        ("dense", in_size, hidden_size, batch_size, "tanh"),
+        ("dense", hidden_size, hidden_size, batch_size, "tanh"),
+        ("dense", hidden_size, hidden_size, batch_size, "tanh"),
+        ("dense", hidden_size, hidden_size, batch_size, "tanh"),
+        ("dense", hidden_size, hidden_size, batch_size, "sigmoid"),
+        ("dense", hidden_size, hidden_size, batch_size, "sigmoid"),
+        ("dense", hidden_size, hidden_size, batch_size, "tanh"),
+        ("dense", hidden_size, hidden_size, batch_size, "tanh"),
+        ("dense", hidden_size, out_size, batch_size, "sigmoid"),
     ];
     let mut network = Network::new(&config);
+
     let duration = start.elapsed();
     println!("Time elapsed in create network is: {:?}", duration);
 
     // Change initial weights to truncated normal to have something pretty
-    for i in 0..network.layers.len()-1 {
+    for i in 0..network.layers.len() - 1 {
         network.layers[i].w = Matrix::randn_truncated(
             network.layers[i].w.n_rows,
             network.layers[i].w.n_columns,
@@ -88,9 +87,8 @@ fn main() {
         );
     }
 
-    let size_w: usize = 3840;
-    let size_h: usize = 2160;
-    let batch_size = 128;
+    let size_w: usize = 512;
+    let size_h: usize = 512;
 
     // Create dataset
     let start = Instant::now();
@@ -114,11 +112,8 @@ fn main() {
 
     // Forward passes
     let start = Instant::now();
+    let y_batches = network.forward_pass(&x_batches);
 
-    let y_batches: Vec<Matrix> = x_batches
-        .par_iter()
-        .map(|x_batch| forward_pass_network(&network, &x_batch))
-        .collect();
     let duration = start.elapsed();
     println!("Time elapsed in forward passes is: {:?}", duration);
 
@@ -143,10 +138,9 @@ fn main() {
             let val1 = y.data[(i * size_w + j) * y.n_columns + 1];
             let val2 = y.data[(i * size_w + j) * y.n_columns + 2];
 
-            let red = (255.0*val0) as u8;
-            let green =(255.0*val1) as u8;
-            let blue = (255.0*val2) as u8;
-
+            let red = (255.0 * val0) as u8;
+            let green = (255.0 * val1) as u8;
+            let blue = (255.0 * val2) as u8;
 
             *image.get_pixel_mut(j.try_into().unwrap(), i.try_into().unwrap()) =
                 image::Rgb([red, green, blue]);

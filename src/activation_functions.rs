@@ -4,8 +4,16 @@ pub fn sigmoid_(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
 }
 
+pub fn d_sigmoid_(x: f32) -> f32 {
+    sigmoid_(x) * (1.0 - sigmoid_(x))
+}
+
 pub fn sigmoid(x: &Matrix) -> Matrix {
     element_wise_operation_matrix(x, sigmoid_)
+}
+
+pub fn d_sigmoid(x: &Matrix) -> Matrix {
+    element_wise_operation_matrix(x, d_sigmoid_)
 }
 
 pub fn tanh_(x: f32) -> f32 {
