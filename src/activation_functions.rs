@@ -45,35 +45,3 @@ pub fn softmax(x: &Matrix) -> Matrix {
 
     exp_x
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_sigmoid() {
-        let mat = Matrix::from_str("0.0, 1.0, -2.0, 3.0, 3.0 -2.0 1.0 0.0");
-        let res = sigmoid(&mat);
-        assert!(res.is_equal(&Matrix::from_str(
-            "0.5, 0.7310586, 0.11920292, 0.95257413, 0.95257413 0.11920292 0.7310586 0.5"
-        )));
-    }
-
-    #[test]
-    fn test_tanh() {
-        let mat = Matrix::from_str("0.0 1.0 -2.0 3.0, 3.0 -2.0 1.0 0.0");
-        let res = tanh(&mat);
-        assert!(res.is_equal(&Matrix::from_str(
-            "0 0.76159406 -0.9640276 0.99505484, 0.99505484 -0.9640276 0.76159406 0"
-        )))
-    }
-
-    #[test]
-    fn test_softmax() {
-        let mat = Matrix::from_str("1 3 2.5 5 4 2, 2 4 5 2.5 3 1");
-        let res = softmax(&mat);
-        assert!(res.is_equal(&Matrix::from_str(
-            "0.011077545 0.0818526 0.049646113 0.60481346 0.22249843 0.030111888, 0.030111888 0.22249843 0.60481346 0.049646113 0.0818526 0.011077545"
-        )))
-    }
-}

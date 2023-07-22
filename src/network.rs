@@ -5,14 +5,21 @@ use crate::matrix::*;
 
 pub struct Network {
     pub n_layers: usize,
-    pub layers: Vec<Dense>,
+    pub layers: Vec<Linear>,
+    pub cost_function: fn(&Matrix, &Matrix) -> Matrix,
 }
 
 impl Network {
-    pub fn new(config: &Vec<(&str, usize, usize, usize, &str)>) -> Self {
-        let mut layers = Vec::new();
+    pub fn new(config: &((usize, &str), Vec<(&str, usize, usize, &str)>)) -> Self {
+        let batch_size = (config.0).0;
+        let cost_function: fn(&Matrix, &Matrix) -> Matrix;
+        match (config.0).1 {
+            "cross_entropy" => cost_function = cross_entropy as fn(&Matrix, &Matrix) -> Matrix,
+            _ => panic!("Invalid cost function: {}", (config.0).1),
+        }
 
-        for (layer_type, in_size, out_size, batch_size, activation_fn) in config {
+        let mut layers = Vec::new();
+        for (layer_type, in_size, out_size, activation_fn) in &config.1 {
             match *layer_type {
                 "dense" => {
                     let activation_function: fn(&Matrix) -> Matrix;
@@ -32,10 +39,10 @@ impl Network {
                         }
                         _ => panic!("Invalid activation function: {}", activation_fn),
                     }
-                    let dense = Dense::new(
+                    let dense = Linear::new(
                         *in_size,
                         *out_size,
-                        *batch_size,
+                        batch_size,
                         activation_function,
                         d_activation_function,
                     );
@@ -45,7 +52,11 @@ impl Network {
             }
         }
         let n_layers = layers.len();
-        Network { n_layers, layers }
+        Network {
+            n_layers,
+            layers,
+            cost_function,
+        }
     }
 
     pub fn forward_pass(&mut self, x_train: &Vec<Matrix>) -> Vec<Matrix> {
@@ -60,13 +71,15 @@ impl Network {
     }
 
     pub fn backward_pass(&mut self, x_train: &Vec<Matrix>, y_train: &Vec<Matrix>) {
-        for i in 0..y_train.len(){
-            let mut right_grad_output = subtract_matrices(&self.layers[self.n_layers - 1].a, &y_train[i]);
+        for i in 0..y_train.len() {
+            let mut right_grad_output =
+                (self.cost_function)(&self.layers[self.n_layers - 1].a, &y_train[i]);
             for j in (1..self.n_layers).rev() {
                 let left_activation_output = &self.layers[j - 1].a.copy();
                 self.layers[j].backward_pass(&right_grad_output, left_activation_output);
 
-                right_grad_output = dot_matrix_matrix(&self.layers[j].w, &self.layers[j].db);
+                right_grad_output =
+                    dot_matrix_matrix(&self.layers[j].db, &transpose(&self.layers[j].w));
             }
             self.layers[0].backward_pass(&right_grad_output, &x_train[i]);
         }

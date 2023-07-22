@@ -1,6 +1,6 @@
 use crate::matrix::*;
 
-pub struct Dense {
+pub struct Linear {
     pub in_size: usize,
     pub out_size: usize,
     pub batch_size: usize,
@@ -14,7 +14,7 @@ pub struct Dense {
     pub d_activation_function: fn(&Matrix) -> Matrix,
 }
 
-impl Dense {
+impl Linear {
     pub fn new(
         in_size: usize,
         out_size: usize,
@@ -47,6 +47,9 @@ impl Dense {
 
     pub fn backward_pass(&mut self, right_grad_output: &Matrix, left_activation_output: &Matrix) {
         self.db = multiply_matrices(&(self.d_activation_function)(&self.z), right_grad_output);
-        self.dw = dot_matrix_matrix(&left_activation_output, &transpose(&self.db));
+        self.dw = dot_matrix_matrix(&transpose(left_activation_output), &self.db);
+
     }
+
+
 }
