@@ -81,6 +81,42 @@ impl Matrix {
         }
     }
 
+    pub fn from_txt(path: &str) -> Self {
+        let file = match File::open(path) {
+            Ok(file) => file,
+            Err(err) => {
+                panic!("Error opening file: {}", err);
+            }
+        };
+
+        let lines: Vec<String> = BufReader::new(file)
+            .lines()
+            .map(|line| line.expect("Error reading line"))
+            .collect();
+
+        let n_rows = lines.len();
+        let n_columns = lines[0].split_whitespace().count();
+
+        let mut data = Vec::new();
+        for line in lines {
+            let values: Vec<f32> = line
+                .split_whitespace()
+                .map(|value| value.parse().expect("Error parsing float"))
+                .collect();
+            data.extend(values);
+        }
+
+        if data.len() != n_rows * n_columns {
+            panic!("Inconsistent number of columns in the file.");
+        }
+
+        Self {
+            n_rows,
+            n_columns,
+            data,
+        }
+    }
+
     pub fn shape(&self) -> (usize, usize) {
         (self.n_rows, self.n_columns)
     }
@@ -268,6 +304,10 @@ pub fn subtract_matrices(mat1: &Matrix, mat2: &Matrix) -> Matrix {
 
 pub fn multiply_matrices(mat1: &Matrix, mat2: &Matrix) -> Matrix {
     element_wise_operation_matrices(mat1, mat2, |a, b| a * b)
+}
+
+pub fn divide_matrices(mat1: &Matrix, mat2: &Matrix) -> Matrix {
+    element_wise_operation_matrices(mat1, mat2, |a, b| a / b)
 }
 
 #[cfg(test)]
