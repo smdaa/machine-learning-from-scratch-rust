@@ -1,3 +1,4 @@
+use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -30,10 +31,10 @@ impl Matrix {
         }
     }
 
-    pub fn randn(n_rows: usize, n_columns: usize, mean: f32, std_dev: f32) -> Self {
-        let normal = Normal::new(mean, std_dev).unwrap();
+    pub fn randn(n_rows: usize, n_columns: usize, low: f32, high: f32) -> Self {
+        let mut rng = rand::thread_rng();
         let data = (0..n_columns * n_rows)
-            .map(|_| normal.sample(&mut rand::thread_rng()))
+            .map(|_| rng.gen_range(low..=high))
             .collect();
 
         Self {
@@ -145,7 +146,7 @@ impl Matrix {
     }
 
     pub fn is_equal(&self, mat: &Matrix) -> bool {
-        self.shape() == mat.shape() && self.data.iter().zip(mat.data.iter()).all(|(&a, &b)| a == b)
+        self.shape() == mat.shape() && self.data.iter().zip(mat.data.iter()).all(|(&a, &b)| (a- b).abs() < 1e-4)
     }
 }
 
@@ -339,20 +340,15 @@ mod tests {
     }
 
     #[test]
-    fn test_randn_matrix() {
-        let mat = Matrix::randn(1000, 1000, 0.0, 1.0);
+    fn test_randn() {
+        let mat = Matrix::randn(1000, 1000, -1.0, 1.0);
         assert_eq!(mat.n_rows, 1000);
         assert_eq!(mat.n_columns, 1000);
-        let n = mat.n_rows * mat.n_columns;
-        let mean = mat.data.iter().sum::<f32>() / n as f32;
-        let mut std_dev: f32 = mat.data.iter().map(|&x| (x - mean).abs().powf(2.0)).sum();
-        std_dev = (std_dev / n as f32).sqrt();
-        assert!(mean < 10f32.powi(-(2 as i32)));
-        assert!((std_dev - 1.0).abs() < 10f32.powi(-(2 as i32)));
+        assert!(mat.data.iter().all(|&x| -1.0 <= x && x <= 1.0));
     }
 
     #[test]
-    fn test_randn_truncated_matrix() {
+    fn test_randn_truncated() {
         let mat = Matrix::randn_truncated(1000, 1000, 0.0, 1.0, -2.0, 2.0);
         assert_eq!(mat.n_rows, 1000);
         assert_eq!(mat.n_columns, 1000);
@@ -360,7 +356,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_str_matrix() {
+    fn test_from_str() {
         let mat = Matrix::from_str("1.0 1.0 1.0, 1.0 1.0 1.0, 1.0 1.0 1.0, 1.0 1.0 1.0");
         assert_eq!(mat.n_rows, 4);
         assert_eq!(mat.n_columns, 3);
@@ -372,6 +368,14 @@ mod tests {
             mat2.data,
             vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 4.0, 4.0, 4.0]
         );
+    }
+
+    #[test]
+    fn test_from_txt() {
+        let x = Matrix::from_txt("./test_data/test_from_txt/x.txt");
+        let y = Matrix::from_txt("./test_data/test_from_txt/y.txt");
+        assert!(x.is_equal(&Matrix::from_str("1 2 3, 4 5 6, 7 8 9")));
+        assert!(y.is_equal(&Matrix::from_str("1, 2, 3, 4, 5, 6, 7, 8, 9, 10")));
     }
 
     #[test]
@@ -387,7 +391,7 @@ mod tests {
     }
 
     #[test]
-    fn test_copy_matrix() {
+    fn test_copy() {
         let mat = Matrix::randn(100, 200, 0.0, 1.0);
         let mat_copy = mat.copy();
         assert!(mat.is_equal(&mat_copy));

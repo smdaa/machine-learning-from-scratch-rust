@@ -4,59 +4,148 @@
 #![allow(unreachable_code)]
 
 use std::process::exit;
-use std::time::{Duration, Instant};
 
 mod cost_functions;
-mod linear_layer;
+mod layer;
 mod matrix;
-mod sigmoid_layer;
 
 use cost_functions::*;
-use linear_layer::*;
+use layer::*;
 use matrix::*;
-use sigmoid_layer::*;
+
+pub fn batch(x: &Matrix, batch_size: usize) -> Vec<Matrix> {
+    let n_rows = x.n_rows;
+    let n_columns = x.n_columns;
+    let n_batches = n_rows / batch_size;
+
+    let batches = (0..n_batches)
+        .map(|i| {
+            let start_idx = i * batch_size;
+            let end_idx = start_idx + batch_size;
+            slice(&x, (start_idx, end_idx - 1), (0, n_columns - 1))
+        })
+        .collect();
+
+    batches
+}
+
+pub fn unbatch(batches: &Vec<Matrix>) -> Matrix {
+    let n_columns = batches[0].n_columns;
+    let n_rows: usize = batches.iter().map(|batch| batch.n_rows).sum();
+    let data: Vec<f32> = batches
+        .iter()
+        .flat_map(|batch| batch.data.clone())
+        .collect();
+
+    Matrix {
+        n_rows,
+        n_columns,
+        data,
+    }
+}
 
 fn main() {
-    let x_train = Matrix::from_txt("./x_.txt");
-    let y_train = Matrix::from_txt("./y_.txt");
+    // load training data
+    let x_train = Matrix::from_txt("./test_data/test_2d_clustering/2_circles/x_train.txt");
+    let y_train = Matrix::from_txt("./test_data/test_2d_clustering/2_circles/y_train.txt");
+    assert_eq!(x_train.n_rows, y_train.n_rows);
 
     let n_train: usize = x_train.n_rows;
     let in_size: usize = x_train.n_columns;
-    let batch_size: usize = n_train;
+    let hidden_size: usize = 8;
     let out_size: usize = 1;
-    let learning_rate = 0.01;
-    let n_epochs = 100_000;
+    let learning_rate = 0.1;
+    let batch_size: usize = 64;
+    let n_epochs = 30;
 
-    let mut linear_layer_0 = LinearLayer::new(in_size, out_size, batch_size);
-    let mut sigmoid_layer_0 = SigmoidLayer::new(out_size, batch_size);
+    // create batches
+    let x_batches = batch(&x_train, batch_size);
+    let y_batches = batch(&y_train, batch_size);
+    let n_batches = x_batches.len();
 
-    let start = Instant::now();
+    // create network
+    let mut linear_layer_0 = LinearLayer::new(in_size, hidden_size, batch_size);
+    let mut relu_layer = ReluLayer::new(hidden_size, batch_size);
+    let mut linear_layer_1 = LinearLayer::new(hidden_size, out_size, batch_size);
+    let mut sigmoid_layer = SigmoidLayer::new(out_size, batch_size);
 
+    // train
     for i in 0..n_epochs {
-        // forward pass
-        linear_layer_0.forward(&x_train);
-        sigmoid_layer_0.forward(&linear_layer_0.z);
+        let mut loss_avg = 0.0;
+        let mut total_correct = 0;
 
-        // compute precision
-        let y_hat = &sigmoid_layer_0.a;
-        let precision: f32 = ((y_train
-            .data
-            .iter()
-            .zip(y_hat.data.iter())
-            .map(|(&y_train_n, &y_hat_n)| (y_train_n == y_hat_n.round()) as i32)
-            .sum::<i32>()) as f32)
-            / (n_train as f32);
+        for (x_batch, y_batch) in x_batches.iter().zip(y_batches.iter()) {
+            // forward pass
+            linear_layer_0.forward(&x_batch);
+            relu_layer.forward(&(linear_layer_0.z));
+            linear_layer_1.forward(&(relu_layer.a));
+            sigmoid_layer.forward(&(linear_layer_1.z));
+            
+            // compute loss
+            let (loss, dl_da) = binary_cross_entropy(y_batch, &(sigmoid_layer.a));
+            
+            // backward pass
+            sigmoid_layer.backward();
+            let da_dz = sigmoid_layer.grad.copy();
+            let dl_dz = multiply_matrices(&dl_da, &da_dz);
+
+            linear_layer_1.backward(&dl_dz);
+            
+            relu_layer.backward();
+            let da_dz = relu_layer.grad.copy();
+            let dl_dz = multiply_matrices(&(linear_layer_1.grad), &da_dz);
+
+            linear_layer_0.backward(&dl_dz);
 
 
-        // compute cost
-        let (cost, grad) = binary_cross_entropy(&y_train, &sigmoid_layer_0.a);
-        println!("epoch: {:?}, cost : {:?}, precision : {:?}", i, cost, precision);
+            // update weights
+            linear_layer_0.update_weights(learning_rate);
+            linear_layer_1.update_weights(learning_rate);
 
-        // backward pass
-        sigmoid_layer_0.backward(&grad);
-        linear_layer_0.backward(&sigmoid_layer_0.dz_);
 
-        // update weights
-        linear_layer_0.update_weights(learning_rate);
+            let correct = sigmoid_layer.a
+                .data
+                .iter()
+                .zip(y_batch.data.iter())
+                .map(|(&y_hat_n, &y_n)| (y_n == y_hat_n.round()) as i32)
+                .sum::<i32>();
+
+            loss_avg = loss_avg + loss;
+            total_correct = total_correct + correct
+        
+        }
+
+        println!("\tepoch : {}, loss : {}, precision : {}", i, loss_avg, (total_correct as f32) / (n_train as f32 ));
+
     }
+
+    // load testing data
+    let x_test = Matrix::from_txt("./test_data/test_2d_clustering/2_circles/x_test.txt");
+    let y_test = Matrix::from_txt("./test_data/test_2d_clustering/2_circles/y_test.txt");
+    assert_eq!(x_test.n_rows, y_test.n_rows);
+
+    let n_test: usize = x_test.n_rows;
+
+    let x_batches = batch(&x_test, batch_size);
+    let y_batches = batch(&y_test, batch_size);
+
+    let mut total_correct = 0;
+    for (x_batch, y_batch) in x_batches.iter().zip(y_batches.iter()) {
+        // forward pass
+        linear_layer_0.forward(&x_batch);
+        relu_layer.forward(&(linear_layer_0.z));
+        linear_layer_1.forward(&(relu_layer.a));
+        sigmoid_layer.forward(&(linear_layer_1.z));
+
+        let correct = sigmoid_layer.a
+        .data
+        .iter()
+        .zip(y_batch.data.iter())
+        .map(|(&y_hat_n, &y_n)| (y_n == y_hat_n.round()) as i32)
+        .sum::<i32>();
+
+        total_correct = total_correct + correct
+    }
+
+    println!("n_test : {}, precision : {}", n_test, (total_correct as f32) / (n_test as f32 ));
 }
