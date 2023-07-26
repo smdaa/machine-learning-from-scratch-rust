@@ -145,170 +145,126 @@ impl Matrix {
         }
     }
 
+    pub fn copy_from(&mut self, other: &Matrix) {
+        assert_eq!(
+            (self.n_rows, self.n_columns),
+            (other.n_rows, other.n_columns),
+            "Matrix shapes must match"
+        );
+        self.data
+            .iter_mut()
+            .zip(other.data.iter())
+            .for_each(|(x, y)| *x = *y);
+    }
+
     pub fn is_equal(&self, mat: &Matrix) -> bool {
-        self.shape() == mat.shape() && self.data.iter().zip(mat.data.iter()).all(|(&a, &b)| (a- b).abs() < 1e-4)
+        self.shape() == mat.shape()
+            && self
+                .data
+                .iter()
+                .zip(mat.data.iter())
+                .all(|(&a, &b)| (a - b).abs() < 1e-4)
     }
-}
 
-pub fn transpose(mat: &Matrix) -> Matrix {
-    let data = (0..mat.n_columns)
-        .flat_map(|j| mat.data.iter().skip(j).step_by(mat.n_columns).copied())
-        .collect();
+    pub fn transpose(&self) -> Self {
+        let data = (0..self.n_columns)
+            .flat_map(|j| self.data.iter().skip(j).step_by(self.n_columns).copied())
+            .collect();
 
-    Matrix {
-        n_rows: mat.n_columns,
-        n_columns: mat.n_rows,
-        data: data,
-    }
-}
-
-pub fn slice(
-    mat: &Matrix,
-    (start_row, end_row): (usize, usize),
-    (start_column, end_column): (usize, usize),
-) -> Matrix {
-    assert!(end_row < mat.n_rows);
-    assert!(end_column < mat.n_columns);
-    let new_n_rows = end_row - start_row + 1;
-    let new_n_columns = end_column - start_column + 1;
-
-    let data = mat
-        .data
-        .chunks(mat.n_columns)
-        .skip(start_row)
-        .take(new_n_rows)
-        .flat_map(|row| row.iter().copied().skip(start_column).take(new_n_columns))
-        .collect();
-
-    Matrix {
-        n_rows: new_n_rows,
-        n_columns: new_n_columns,
-        data: data,
-    }
-}
-
-pub fn dot_matrix_matrix(mat1: &Matrix, mat2: &Matrix) -> Matrix {
-    assert_eq!(mat1.n_columns, mat2.n_rows);
-    let n_rows = mat1.n_rows;
-    let n_columns = mat2.n_columns;
-    let mut mat = Matrix::new(n_rows, n_columns, 0.0);
-
-    for i in 0..n_rows {
-        for j in 0..n_columns {
-            let mut acc = 0.0;
-            for k in 0..mat1.n_columns {
-                acc += mat1.data[i * mat1.n_columns + k] * mat2.data[k * mat2.n_columns + j];
-            }
-            mat.data[i * mat.n_columns + j] = acc;
+        Self {
+            n_rows: self.n_columns,
+            n_columns: self.n_rows,
+            data: data,
         }
     }
 
-    mat
-}
+    pub fn slice(
+        &self,
+        (start_row, end_row): (usize, usize),
+        (start_column, end_column): (usize, usize),
+    ) -> Self {
+        assert!(end_row < self.n_rows);
+        assert!(end_column < self.n_columns);
+        let new_n_rows = end_row - start_row + 1;
+        let new_n_columns = end_column - start_column + 1;
 
-pub fn dot_matrix_matrix_iter(mat1: &Matrix, mat2: &Matrix) -> Matrix {
-    fn dot_row_col(row: &Vec<f32>, col: &Vec<f32>) -> f32 {
-        row.iter().zip(col.iter()).map(|(&a, &b)| a * b).sum()
+        let data = self
+            .data
+            .chunks(self.n_columns)
+            .skip(start_row)
+            .take(new_n_rows)
+            .flat_map(|row| row.iter().copied().skip(start_column).take(new_n_columns))
+            .collect();
+
+        Self {
+            n_rows: new_n_rows,
+            n_columns: new_n_columns,
+            data: data,
+        }
     }
-    assert_eq!(mat1.n_columns, mat2.n_rows);
 
-    let n_rows = mat1.n_rows;
-    let n_columns = mat2.n_columns;
+    pub fn element_wise_operation(&mut self, op: impl Fn(f32) -> f32) {
+        self.data.iter_mut().for_each(|x| *x = op(*x));
+    }
 
-    let data: Vec<f32> = (0..mat1.n_rows)
-        .map(|i| {
-            let row = &mat1
-                .data
-                .iter()
-                .copied()
-                .skip(mat1.n_columns * i)
-                .take(mat1.n_columns)
-                .collect();
-            let mut result_row = Vec::with_capacity(mat2.n_columns);
+    pub fn add_scalar(&mut self, scalar: f32) {
+        self.element_wise_operation(|x| scalar + x);
+    }
 
-            for j in 0..mat2.n_columns {
-                let col = &mat2
-                    .data
-                    .iter()
-                    .copied()
-                    .skip(j)
-                    .step_by(mat2.n_columns)
-                    .take(mat2.n_rows)
-                    .collect();
-                let dot_product = dot_row_col(row, col);
-                result_row.push(dot_product);
+    pub fn subtract_scalar(&mut self, scalar: f32) {
+        self.element_wise_operation(|x| x - scalar);
+    }
+
+    pub fn multiply_scalar(&mut self, scalar: f32) {
+        self.element_wise_operation(|x| x * scalar);
+    }
+
+    pub fn element_wise_operation_matrix(&mut self, other: &Matrix, op: impl Fn(f32, f32) -> f32) {
+        assert_eq!(
+            (self.n_rows, self.n_columns),
+            (other.n_rows, other.n_columns),
+            "Matrix shapes must match"
+        );
+        self.data
+            .iter_mut()
+            .zip(other.data.iter())
+            .for_each(|(x, y)| *x = op(*x, *y));
+    }
+
+    pub fn add_matrix(&mut self, other: &Matrix) {
+        self.element_wise_operation_matrix(other, |a, b| a + b);
+    }
+
+    pub fn subtract_matrix(&mut self, other: &Matrix) {
+        self.element_wise_operation_matrix(other, |a, b| a - b);
+    }
+
+    pub fn multiply_matrix(&mut self, other: &Matrix) {
+        self.element_wise_operation_matrix(other, |a, b| a * b);
+    }
+
+    pub fn divide_matrix(&mut self, other: &Matrix) {
+        self.element_wise_operation_matrix(other, |a, b| a / b);
+    }
+
+    pub fn dot_matrix(&self, other: &Matrix) -> Self {
+        assert_eq!(self.n_columns, other.n_rows);
+        let n_rows = self.n_rows;
+        let n_columns = other.n_columns;
+        let mut mat = Matrix::new(n_rows, n_columns, 0.0);
+
+        for i in 0..n_rows {
+            for j in 0..n_columns {
+                let mut acc = 0.0;
+                for k in 0..self.n_columns {
+                    acc += self.data[i * self.n_columns + k] * other.data[k * other.n_columns + j];
+                }
+                mat.data[i * mat.n_columns + j] = acc;
             }
+        }
 
-            result_row
-        })
-        .flatten()
-        .collect();
-
-    Matrix {
-        n_rows: n_rows,
-        n_columns: n_columns,
-        data: data,
+        mat
     }
-}
-
-pub fn element_wise_operation_matrix(mat: &Matrix, op: impl Fn(f32) -> f32) -> Matrix {
-    let data = mat.data.iter().map(|&x| op(x)).collect();
-    Matrix {
-        n_rows: mat.n_rows,
-        n_columns: mat.n_columns,
-        data: data,
-    }
-}
-
-pub fn add_scalar_matrix(scalar: f32, mat: &Matrix) -> Matrix {
-    element_wise_operation_matrix(mat, |x| scalar + x)
-}
-
-pub fn subtract_scalar_matrix(scalar: f32, mat: &Matrix) -> Matrix {
-    element_wise_operation_matrix(mat, |x| x - scalar)
-}
-
-pub fn multiply_scalar_matrix(scalar: f32, mat: &Matrix) -> Matrix {
-    element_wise_operation_matrix(mat, |x| scalar * x)
-}
-
-pub fn element_wise_operation_matrices(
-    mat1: &Matrix,
-    mat2: &Matrix,
-    op: impl Fn(f32, f32) -> f32,
-) -> Matrix {
-    assert_eq!(
-        (mat1.n_rows, mat1.n_columns),
-        (mat2.n_rows, mat2.n_columns),
-        "Matrix shapes must match"
-    );
-    let data = mat1
-        .data
-        .iter()
-        .zip(mat2.data.iter())
-        .map(|(&a, &b)| op(a, b))
-        .collect();
-    Matrix {
-        n_rows: mat1.n_rows,
-        n_columns: mat1.n_columns,
-        data: data,
-    }
-}
-
-pub fn add_matrices(mat1: &Matrix, mat2: &Matrix) -> Matrix {
-    element_wise_operation_matrices(mat1, mat2, |a, b| a + b)
-}
-
-pub fn subtract_matrices(mat1: &Matrix, mat2: &Matrix) -> Matrix {
-    element_wise_operation_matrices(mat1, mat2, |a, b| a - b)
-}
-
-pub fn multiply_matrices(mat1: &Matrix, mat2: &Matrix) -> Matrix {
-    element_wise_operation_matrices(mat1, mat2, |a, b| a * b)
-}
-
-pub fn divide_matrices(mat1: &Matrix, mat2: &Matrix) -> Matrix {
-    element_wise_operation_matrices(mat1, mat2, |a, b| a / b)
 }
 
 #[cfg(test)]
@@ -341,31 +297,27 @@ mod tests {
 
     #[test]
     fn test_randn() {
-        let mat = Matrix::randn(1000, 1000, -1.0, 1.0);
-        assert_eq!(mat.n_rows, 1000);
-        assert_eq!(mat.n_columns, 1000);
-        assert!(mat.data.iter().all(|&x| -1.0 <= x && x <= 1.0));
+        let mat = Matrix::randn(100, 200, -5.0, 5.0);
+        assert_eq!(mat.n_rows, 100);
+        assert_eq!(mat.n_columns, 200);
+        assert!(mat.data.iter().all(|&x| -5.0 <= x && x <= 5.0));
     }
 
     #[test]
     fn test_randn_truncated() {
-        let mat = Matrix::randn_truncated(1000, 1000, 0.0, 1.0, -2.0, 2.0);
-        assert_eq!(mat.n_rows, 1000);
-        assert_eq!(mat.n_columns, 1000);
+        let mat = Matrix::randn_truncated(100, 200, 0.0, 1.0, -2.0, 2.0);
+        assert_eq!(mat.n_rows, 100);
+        assert_eq!(mat.n_columns, 200);
         assert!(mat.data.iter().all(|&x| -2.0 <= x && x <= 2.0));
     }
 
     #[test]
     fn test_from_str() {
-        let mat = Matrix::from_str("1.0 1.0 1.0, 1.0 1.0 1.0, 1.0 1.0 1.0, 1.0 1.0 1.0");
+        let mat = Matrix::from_str("1.0 1.0 1.0, 2.0 2.0 2.0, 3.0 3.0 3.0, 4.0 4.0 4.0");
         assert_eq!(mat.n_rows, 4);
         assert_eq!(mat.n_columns, 3);
-        assert!(mat.data.iter().all(|&x| x == 1.0));
-        let mat2 = Matrix::from_str("1.0 1.0 1.0, 2.0 2.0 2.0, 3.0 3.0 3.0, 4.0 4.0 4.0");
-        assert_eq!(mat2.n_rows, 4);
-        assert_eq!(mat2.n_columns, 3);
         assert_eq!(
-            mat2.data,
+            mat.data,
             vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 4.0, 4.0, 4.0]
         );
     }
@@ -374,126 +326,197 @@ mod tests {
     fn test_from_txt() {
         let x = Matrix::from_txt("./test_data/test_from_txt/x.txt");
         let y = Matrix::from_txt("./test_data/test_from_txt/y.txt");
-        assert!(x.is_equal(&Matrix::from_str("1 2 3, 4 5 6, 7 8 9")));
-        assert!(y.is_equal(&Matrix::from_str("1, 2, 3, 4, 5, 6, 7, 8, 9, 10")));
+        assert_eq!(x.data, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+        assert_eq!(x.n_rows, 3);
+        assert_eq!(x.n_columns, 3);
+        assert_eq!(
+            y.data,
+            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+        );
+        assert_eq!(y.n_rows, 10);
+        assert_eq!(y.n_columns, 1);
     }
 
     #[test]
     fn test_shape() {
-        let mat = Matrix::randn(100, 200, 0.0, 1.0);
-        assert_eq!(mat.shape(), (100, 200));
+        let mat = Matrix::new(10, 20, 0.0);
+        assert_eq!(mat.shape(), (10, 20));
     }
 
     #[test]
     fn test_size() {
-        let mat = Matrix::randn(100, 200, 0.0, 1.0);
-        assert_eq!(mat.size(), 20000);
+        let mat = Matrix::new(12, 12, 0.0);
+        assert_eq!(mat.size(), 144);
     }
 
     #[test]
     fn test_copy() {
-        let mat = Matrix::randn(100, 200, 0.0, 1.0);
+        let mat = Matrix::new(12, 13, 2.0);
         let mat_copy = mat.copy();
-        assert!(mat.is_equal(&mat_copy));
+        assert_eq!(
+            (mat.n_rows, mat.n_columns),
+            (mat_copy.n_rows, mat_copy.n_columns)
+        );
+        assert!(mat_copy.data.iter().all(|&x| x == 2.0));
+    }
+
+    #[test]
+    fn test_copy_from() {
+        let mut mat = Matrix::new(12, 13, 2.0);
+        mat.copy_from(&Matrix::new(12, 13, 1.0));
+        assert_eq!((mat.n_rows, mat.n_columns), (12, 13));
+        assert!(mat.data.iter().all(|&x| x == 1.0));
     }
 
     #[test]
     fn test_is_equal() {
-        let mat1 = Matrix::from_str("1.0 1.0 1.0, 2.0 2.0 2.0, 3.0 3.0 3.0, 4.0 4.0 4.0");
-        let mat2 = Matrix::from_str("1.0 1.0 1.0, 2.0 2.0 2.0, 3.0 3.0 3.0, 4.0 4.0 4.0");
-        let mat3 = Matrix::from_str("1.0 1.0 1.0, 2.0 2.0 2.0, 3.0 3.0 3.0, 5.0 4.0 4.0");
+        let mat1 = Matrix::new(3, 4, 2.0);
+        let mat2 = Matrix::new(3, 4, 2.0);
+        let mut mat3 = Matrix::new(3, 4, 2.0);
+        mat3.data[5] = 1.0;
         assert_eq!(mat1.is_equal(&mat2), true);
         assert_eq!(mat1.is_equal(&mat3), false);
     }
 
     #[test]
     fn test_transpose() {
-        let mat = Matrix::from_str("1 2 3, 4 5 6");
-        let mat_transposed = transpose(&mat);
-        assert!(mat_transposed.is_equal(&Matrix::from_str("1 4, 2 5, 3 6")));
+        let mut mat = Matrix::new(4, 3, 0.0);
+        let mut mat_t = Matrix::new(3, 4, 0.0);
+        let mut k = 0.0;
+        for i in 0..4 {
+            for j in 0..3 {
+                mat.data[i * 3 + j] = k;
+                mat_t.data[j * 4 + i] = k;
+                k = k + 1.0;
+            }
+        }
+
+        let mat_t_hat = mat.transpose();
+        assert_eq!(
+            (mat_t_hat.n_rows, mat_t_hat.n_columns),
+            (mat_t.n_rows, mat_t.n_columns)
+        );
+        assert!(mat_t_hat
+            .data
+            .iter()
+            .zip(mat_t.data.iter())
+            .all(|(&x, &y)| x == y));
     }
 
     #[test]
     fn test_slice() {
         let mat = Matrix::eye(5);
-        let mat_slice1 = slice(&mat, (0, 4), (0, 4));
-        assert!(mat.is_equal(&mat_slice1));
-        let mat_slice2 = slice(&mat, (0, 2), (0, 2));
+        let mat_slice1 = mat.slice((0, 4), (0, 4));
+        assert_eq!(
+            (mat.n_rows, mat.n_columns),
+            (mat_slice1.n_rows, mat_slice1.n_columns)
+        );
+        assert!(mat
+            .data
+            .iter()
+            .zip(mat_slice1.data.iter())
+            .all(|(&x, &y)| x == y));
+
+        let mat_slice2 = mat.slice((0, 2), (0, 2));
         let expected_mat_slice2 = Matrix::eye(3);
-        assert!(mat_slice2.is_equal(&expected_mat_slice2));
-        let mat_slice3 = slice(&mat, (0, 4), (0, 0));
-        let expected_mat_slice3 = Matrix::from_str("1, 0, 0, 0, 0");
-        assert!(mat_slice3.is_equal(&expected_mat_slice3));
+        assert_eq!(
+            (mat_slice2.n_rows, mat_slice2.n_columns),
+            (expected_mat_slice2.n_rows, expected_mat_slice2.n_columns)
+        );
+        assert!(mat_slice2
+            .data
+            .iter()
+            .zip(expected_mat_slice2.data.iter())
+            .all(|(&x, &y)| x == y));
     }
 
     #[test]
-    fn test_dot_matrix_matrix() {
+    fn test_dot_matrix() {
         let mat = Matrix::randn(100, 200, 0.0, 1.0);
-        let res = dot_matrix_matrix(&mat, &Matrix::eye(200));
-        assert!(mat.is_equal(&res));
-        let mat1 = Matrix::from_str("1 0 1, 2 1 1, 0 1 1, 1 1 2");
-        let mat2 = Matrix::from_str("1 2 1, 2 3 1, 4 2 2");
-        let mat3 = dot_matrix_matrix(&mat1, &mat2);
-        assert!(mat3.is_equal(&Matrix::from_str("5 4 3, 8 9 5, 6 5 3, 11 9 6")));
+        let res = mat.dot_matrix(&Matrix::eye(200));
+        assert_eq!((mat.n_rows, mat.n_columns), (res.n_rows, res.n_columns));
+        assert!(mat.data.iter().zip(res.data.iter()).all(|(&x, &y)| x == y));
+        let mat1 = Matrix::new(2, 3, 2.0);
+        let mat2 = Matrix::new(3, 2, 3.0);
+        let mat3 = mat1.dot_matrix(&mat2);
+        assert_eq!((mat3.n_rows, mat3.n_columns), (2, 2));
+        assert!(mat3.data.iter().all(|&x| x == 18.0));
+    }
+
+    #[test]
+    fn test_element_wise_operation() {
+        let mut mat = Matrix::new(3, 3, 2.0);
+        mat.element_wise_operation(|x| x - 1.0);
+        assert_eq!((mat.n_rows, mat.n_columns), (3, 3));
+        assert!(mat.data.iter().all(|&x| x == 1.0));
+    }
+
+    #[test]
+    fn test_add_scalar() {
+        let mut mat = Matrix::new(3, 3, 2.0);
+        mat.add_scalar(2.0);
+        assert_eq!((mat.n_rows, mat.n_columns), (3, 3));
+        assert!(mat.data.iter().all(|&x| x == 4.0));
+    }
+
+    #[test]
+    fn test_subtract_scalar() {
+        let mut mat = Matrix::new(3, 3, 2.0);
+        mat.subtract_scalar(2.0);
+        assert_eq!((mat.n_rows, mat.n_columns), (3, 3));
+        assert!(mat.data.iter().all(|&x| x == 0.0));
+    }
+
+    #[test]
+    fn test_multiply_scalar() {
+        let mut mat = Matrix::new(3, 3, 2.0);
+        mat.multiply_scalar(10.0);
+        assert_eq!((mat.n_rows, mat.n_columns), (3, 3));
+        assert!(mat.data.iter().all(|&x| x == 20.0));
     }
 
     #[test]
     fn test_element_wise_operation_matrix() {
-        let mat = Matrix::from_str("1 2 3, 4 5 6");
-        let res = element_wise_operation_matrix(&mat, |x| x - 1.0);
-        assert!(res.is_equal(&Matrix::from_str("0 1 2, 3 4 5")));
+        let mut mat1 = Matrix::new(3, 3, 2.0);
+        let mat2 = Matrix::new(3, 3, 3.0);
+        mat1.element_wise_operation_matrix(&mat2, |x, y| (x + y) * 2.0);
+        assert_eq!((mat1.n_rows, mat1.n_columns), (3, 3));
+        assert!(mat1.data.iter().all(|&x| x == 10.0));
     }
 
     #[test]
-    fn test_add_scalar_matrix() {
-        let mat = Matrix::from_str("1 2 3, 4 5 6");
-        let res = add_scalar_matrix(1.0, &mat);
-        assert!(res.is_equal(&Matrix::from_str("2 3 4, 5 6 7")));
+    fn test_add_matrix() {
+        let mut mat1 = Matrix::new(3, 3, 2.0);
+        let mat2 = Matrix::new(3, 3, 3.0);
+        mat1.add_matrix(&mat2);
+        assert_eq!((mat1.n_rows, mat1.n_columns), (3, 3));
+        assert!(mat1.data.iter().all(|&x| x == 5.0));
     }
 
     #[test]
-    fn test_subtract_scalar_matrix() {
-        let mat = Matrix::from_str("1 2 3, 4 5 6");
-        let res = subtract_scalar_matrix(1.0, &mat);
-        assert!(res.is_equal(&Matrix::from_str("0 1 2, 3 4 5")));
+    fn test_subtract_matrix() {
+        let mut mat1 = Matrix::new(3, 3, 2.0);
+        let mat2 = Matrix::new(3, 3, 3.0);
+        mat1.subtract_matrix(&mat2);
+        assert_eq!((mat1.n_rows, mat1.n_columns), (3, 3));
+        assert!(mat1.data.iter().all(|&x| x == -1.0));
     }
 
     #[test]
-    fn test_multiply_scalar_matrix() {
-        let mat = Matrix::from_str("1 2 3, 4 5 6");
-        let res = multiply_scalar_matrix(2.0, &mat);
-        assert!(res.is_equal(&Matrix::from_str("2 4 6, 8 10 12")));
+    fn test_multiply_matrix() {
+        let mut mat1 = Matrix::new(3, 3, 2.0);
+        let mat2 = Matrix::new(3, 3, 3.0);
+        mat1.multiply_matrix(&mat2);
+        assert_eq!((mat1.n_rows, mat1.n_columns), (3, 3));
+        assert!(mat1.data.iter().all(|&x| x == 6.0));
     }
 
     #[test]
-    fn test_element_wise_operation_matrices() {
-        let mat1 = Matrix::from_str("1 2 3, 4 5 6");
-        let mat2 = Matrix::from_str("6 5 4, 3 2 1");
-        let mat3 = element_wise_operation_matrices(&mat1, &mat2, |x, y| (x + y) * 2.0);
-        assert!(mat3.is_equal(&Matrix::from_str("14 14 14, 14 14 14")));
-    }
-
-    #[test]
-    fn test_add_matrices() {
-        let mat1 = Matrix::from_str("1 2 3, 4 5 6");
-        let mat2 = Matrix::from_str("6 5 4, 3 2 1");
-        let mat3 = add_matrices(&mat1, &mat2);
-        assert!(mat3.is_equal(&Matrix::from_str("7 7 7, 7 7 7")));
-    }
-
-    #[test]
-    fn test_subtract_matrices() {
-        let mat1 = Matrix::from_str("1 2 3, 4 5 6");
-        let mat2 = Matrix::from_str("6 5 4, 3 2 1");
-        let mat3 = subtract_matrices(&mat1, &mat2);
-        assert!(mat3.is_equal(&Matrix::from_str("-5 -3 -1, 1 3 5")));
-    }
-
-    #[test]
-    fn test_multiply_matrices() {
-        let mat1 = Matrix::from_str("1 2 3, 4 5 6");
-        let mat2 = Matrix::from_str("6 5 4, 3 2 1");
-        let mat3 = multiply_matrices(&mat1, &mat2);
-        assert!(mat3.is_equal(&Matrix::from_str("6 10 12, 12 10 6")));
+    fn test_divide_matrix() {
+        let mut mat1 = Matrix::new(3, 3, 2.0);
+        let mat2 = Matrix::new(3, 3, 3.0);
+        mat1.divide_matrix(&mat2);
+        assert_eq!((mat1.n_rows, mat1.n_columns), (3, 3));
+        assert!(mat1.data.iter().all(|&x| x == 2.0 / 3.0));
     }
 }

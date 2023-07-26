@@ -1,10 +1,10 @@
 use crate::matrix::*;
-use std::cmp::min;
 use std::cmp::max;
+use std::cmp::min;
 
 pub fn binary_cross_entropy(y: &Matrix, y_hat: &Matrix) -> (f32, Matrix) {
-    let lower_bound:f32 = 1e-07;
-    let upper_bound:f32 = 1.0 - lower_bound;
+    let lower_bound: f32 = 1e-07;
+    let upper_bound: f32 = 1.0 - lower_bound;
     let loss: f32 = y
         .data
         .iter()
@@ -20,13 +20,15 @@ pub fn binary_cross_entropy(y: &Matrix, y_hat: &Matrix) -> (f32, Matrix) {
         .sum::<f32>()
         / (y.n_rows as f32);
 
-    let grad = divide_matrices(
-        &subtract_matrices(&y_hat, &y),
-        &multiply_matrices(&y_hat, &element_wise_operation_matrix(y_hat, |x| 1.0 - x)),
-    );
+    let mut grad = y_hat.copy();
+    grad.element_wise_operation_matrix(&y, |y_hat_n, y_n| {
+        (y_hat_n - y_n) / (y_hat_n * (1.0 - y_hat_n))
+    });
 
     (loss, grad)
 }
+
+
 
 #[cfg(test)]
 mod tests {
