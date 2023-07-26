@@ -52,11 +52,11 @@ fn main() {
 
     let n_train: usize = x_train.n_rows;
     let in_size: usize = x_train.n_columns;
-    let hidden_size: usize = 8;
+    let hidden_size: usize = 16;
     let out_size: usize = 1;
-    let learning_rate = 0.1;
-    let batch_size: usize = 64;
-    let n_epochs = 30;
+    let learning_rate = 0.01;
+    let batch_size: usize = 32;
+    let n_epochs = 200;
 
     // create batches
     let x_batches = batch(&x_train, batch_size);

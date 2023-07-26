@@ -109,7 +109,6 @@ dependencies = [
  "image",
  "rand",
  "rand_distr",
- "rayon",
 ]
 
 [[package]]
