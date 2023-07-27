@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-
-from sklearn.datasets import make_circles
+from sklearn.datasets import make_moons
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
@@ -22,13 +20,11 @@ def save_y_txt(y, s):
     f.close()
 
 
-x, y = make_circles(n_samples=10000, factor=0.1, noise=0.1, random_state=0)
-
+x, y = make_moons(n_samples=10000, random_state=0, noise=0.1)
 
 x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.33)
 
-plt.scatter(x[y==0, 0], x[y==0, 1])
-plt.scatter(x[y==1, 0], x[y==1, 1])
+plt.scatter(x[:, 0], x[:, 1])
 plt.show()
 
 save_x_txt(x_train, "x_train")

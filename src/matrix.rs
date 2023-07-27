@@ -163,7 +163,7 @@ impl Matrix {
                 .data
                 .iter()
                 .zip(mat.data.iter())
-                .all(|(&a, &b)| (a - b).abs() < 1e-4)
+                .all(|(&a, &b)| (a - b).abs() < f32::EPSILON.sqrt())
     }
 
     pub fn transpose(&self) -> Self {
@@ -219,7 +219,7 @@ impl Matrix {
         self.element_wise_operation(|x| x * scalar);
     }
 
-    pub fn element_wise_operation_matrix(&mut self, other: &Matrix, op: impl Fn(f32, f32) -> f32) {
+    pub fn element_wise_operation_matrix(&mut self, other: &Self, op: impl Fn(f32, f32) -> f32) {
         assert_eq!(
             (self.n_rows, self.n_columns),
             (other.n_rows, other.n_columns),
@@ -231,27 +231,27 @@ impl Matrix {
             .for_each(|(x, y)| *x = op(*x, *y));
     }
 
-    pub fn add_matrix(&mut self, other: &Matrix) {
+    pub fn add_matrix(&mut self, other: &Self) {
         self.element_wise_operation_matrix(other, |a, b| a + b);
     }
 
-    pub fn subtract_matrix(&mut self, other: &Matrix) {
+    pub fn subtract_matrix(&mut self, other: &Self) {
         self.element_wise_operation_matrix(other, |a, b| a - b);
     }
 
-    pub fn multiply_matrix(&mut self, other: &Matrix) {
+    pub fn multiply_matrix(&mut self, other: &Self) {
         self.element_wise_operation_matrix(other, |a, b| a * b);
     }
 
-    pub fn divide_matrix(&mut self, other: &Matrix) {
+    pub fn divide_matrix(&mut self, other: &Self) {
         self.element_wise_operation_matrix(other, |a, b| a / b);
     }
 
-    pub fn dot_matrix(&self, other: &Matrix) -> Self {
+    pub fn dot_matrix(&self, other: &Self) -> Self {
         assert_eq!(self.n_columns, other.n_rows);
         let n_rows = self.n_rows;
         let n_columns = other.n_columns;
-        let mut mat = Matrix::new(n_rows, n_columns, 0.0);
+        let mut mat = Self::new(n_rows, n_columns, 0.0);
 
         for i in 0..n_rows {
             for j in 0..n_columns {
@@ -264,6 +264,31 @@ impl Matrix {
         }
 
         mat
+    }
+
+    pub fn sum_columns(&mut self) {
+        for i in 0..self.n_rows {
+            let mut acc = 0.0;
+            for j in 0..self.n_columns {
+                acc += self.data[i * self.n_columns + j];
+            }
+
+            for j in 0..self.n_columns {
+                self.data[i * self.n_columns + j] = acc;
+            }
+        }
+    }
+
+    pub fn sum_rows(&mut self) {
+        for j in 0..self.n_columns {
+            let mut acc = 0.0;
+            for i in 0..self.n_rows {
+                acc += self.data[i * self.n_columns + j];
+            }
+            for i in 0..self.n_rows {
+                self.data[i * self.n_columns + j] = acc;
+            }
+        }
     }
 }
 
@@ -518,5 +543,21 @@ mod tests {
         mat1.divide_matrix(&mat2);
         assert_eq!((mat1.n_rows, mat1.n_columns), (3, 3));
         assert!(mat1.data.iter().all(|&x| x == 2.0 / 3.0));
+    }
+
+    #[test]
+    fn test_sum_columns() {
+        let mut mat = Matrix::new(2, 3, 1.0);
+        mat.sum_columns();
+        assert_eq!((mat.n_rows, mat.n_columns), (2, 3));
+        assert!(mat.data.iter().all(|&x| x == 3.0));
+    }
+
+    #[test]
+    fn test_sum_rows() {
+        let mut mat = Matrix::new(2, 3, 1.0);
+        mat.sum_rows();
+        assert_eq!((mat.n_rows, mat.n_columns), (2, 3));
+        assert!(mat.data.iter().all(|&x| x == 2.0));
     }
 }
