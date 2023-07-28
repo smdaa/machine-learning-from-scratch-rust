@@ -50,6 +50,7 @@ pub fn test_mnist() {
 
     let n_train: usize = x_train.n_rows;
     let in_size: usize = x_train.n_columns;
+    let hidden_size = 32;
     let out_size: usize = 10;
     let learning_rate = 0.01;
     let batch_size: usize = 64;
@@ -61,7 +62,9 @@ pub fn test_mnist() {
     let n_batches = x_batches.len();
 
     // create network
-    let mut linear_layer = LinearLayer::new(in_size, out_size, batch_size);
+    let mut linear_layer_0 = LinearLayer::new(in_size, hidden_size, batch_size);
+    let mut relu_layer = ReluLayer::new(hidden_size, batch_size);
+    let mut linear_layer_1 = LinearLayer::new(hidden_size, out_size, batch_size);
     let mut ce_layer = CELossLayer::new(out_size, batch_size);
 
     // train
@@ -73,24 +76,45 @@ pub fn test_mnist() {
     let now = Instant::now();
     for i in 0..n_epochs {
         let mut loss_avg = 0.0;
+        let mut total_correct = 0.0;
 
         for (x_batch, y_batch) in x_batches.iter().zip(y_batches.iter()) {
             // forward pass
-            linear_layer.forward(&x_batch);
-            ce_layer.forward(&(linear_layer.z), y_batch);
+            linear_layer_0.forward(&x_batch);
+            relu_layer.forward(&linear_layer_0.z);
+            linear_layer_1.forward(&relu_layer.a);
+            ce_layer.forward(&(linear_layer_1.z), y_batch);
 
             // backward pass
             ce_layer.backward(y_batch);
-            linear_layer.backward(&(ce_layer.grad));
+            linear_layer_1.backward(&(ce_layer.grad));
+            relu_layer.backward(&linear_layer_1.grad);
+            linear_layer_0.backward(&relu_layer.grad);
 
             // update weights
-            linear_layer.update_weights(learning_rate);
+            linear_layer_0.update_weights(learning_rate);
+            linear_layer_1.update_weights(learning_rate);
 
+            let prediction = ce_layer.a.max_idx(1);
+            let truth = y_batch.max_idx(1);
+            let correct = prediction
+                .data
+                .iter()
+                .zip(truth.data.iter())
+                .map(|(&y_hat_n, &y_n)| {
+                    ((y_n - y_hat_n.round()).abs() < f32::EPSILON.sqrt()) as i32
+                })
+                .sum::<i32>();
+            total_correct += correct as f32;
             loss_avg += ce_layer.loss;
         }
         loss_avg /= n_batches as f32;
+        total_correct /= n_train as f32;
 
-        println!("\tepoch : {}, loss : {}", i, loss_avg,);
+        println!(
+            "\tepoch : {}, loss : {}, precision : {}",
+            i, loss_avg, total_correct
+        );
     }
     let elapsed = now.elapsed();
     println!(
@@ -108,11 +132,30 @@ pub fn test_mnist() {
     let x_batches = batch(&x_test, batch_size);
     let y_batches = batch(&y_test, batch_size);
 
+    let mut total_correct = 0.0;
     for (x_batch, y_batch) in x_batches.iter().zip(y_batches.iter()) {
         // forward pass
-        linear_layer.forward(&x_batch);
-        ce_layer.forward(&(linear_layer.z), y_batch);
+        linear_layer_0.forward(&x_batch);
+        relu_layer.forward(&linear_layer_0.z);
+        linear_layer_1.forward(&relu_layer.a);
+        ce_layer.forward(&(linear_layer_1.z), y_batch);
+
+        let prediction = ce_layer.a.max_idx(1);
+        let truth = y_batch.max_idx(1);
+        let correct = prediction
+            .data
+            .iter()
+            .zip(truth.data.iter())
+            .map(|(&y_hat_n, &y_n)| ((y_n - y_hat_n.round()).abs() < f32::EPSILON.sqrt()) as i32)
+            .sum::<i32>();
+        total_correct += correct as f32;
     }
+    println!(
+        "n_test : {}, total_correct : {}, precision : {}",
+        n_test,
+        total_correct,
+        (total_correct / (n_test as f32))
+    );
 }
 
 pub fn test_2_circles() {
@@ -206,7 +249,7 @@ pub fn test_2_circles() {
     let x_batches = batch(&x_test, batch_size);
     let y_batches = batch(&y_test, batch_size);
 
-    let mut total_correct = 0;
+    let mut total_correct = 0.0;
     for (x_batch, y_batch) in x_batches.iter().zip(y_batches.iter()) {
         // forward pass
         linear_layer_0.forward(&x_batch);
@@ -222,13 +265,18 @@ pub fn test_2_circles() {
             .map(|(&y_hat_n, &y_n)| ((y_n - y_hat_n.round()).abs() < f32::EPSILON.sqrt()) as i32)
             .sum::<i32>();
 
-        total_correct = total_correct + correct;
+        total_correct += correct as f32;
     }
 
-    println!("n_test : {}, total_correct : {}", n_test, total_correct);
+    println!(
+        "n_test : {}, total_correct : {}, precision : {}",
+        n_test,
+        total_correct,
+        (total_correct / (n_test as f32))
+    );
 }
 
 fn main() {
-    //test_mnist();
+    test_mnist();
     //test_2_circles();
 }

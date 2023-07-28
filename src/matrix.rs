@@ -404,6 +404,44 @@ impl Matrix {
             _ => panic!("Invalid option"),
         }
     }
+
+    pub fn max_idx(&self, axis: i32) -> Self {
+        match axis {
+            0 => Self {
+                n_rows: 1,
+                n_columns: self.n_columns,
+                data: (0..self.n_columns)
+                    .map(|col_idx| {
+                        self.data
+                            .iter()
+                            .skip(col_idx)
+                            .step_by(self.n_columns)
+                            .enumerate()
+                            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+                            .map(|(index, _)| (index as f32))
+                            .unwrap()
+                    })
+                    .collect(),
+            },
+            1 => Self {
+                n_rows: self.n_rows,
+                n_columns: 1,
+                data: self
+                    .data
+                    .chunks(self.n_columns)
+                    .map(|row| {
+                        row.iter()
+                            .enumerate()
+                            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+                            .map(|(index, _)| (index as f32))
+                            .unwrap()
+                    })
+                    .collect(),
+            },
+
+            _ => panic!("Invalid option"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -723,7 +761,7 @@ mod tests {
         let max_0 = y.max(0);
         assert_eq!((max_0.n_rows, max_0.n_columns), (1, 3));
         assert_eq!(max_0.data, vec![1.0, 2.0, 3.0]);
-        
+
         let y = Matrix {
             n_rows: 3,
             n_columns: 1,
@@ -919,5 +957,20 @@ mod tests {
         let y = x.repeat(5, 1);
         assert_eq!((y.n_rows, y.n_columns), (1, 5));
         assert_eq!(y.data, vec![1.0, 1.0, 1.0, 1.0, 1.0,]);
+    }
+
+    #[test]
+    fn test_max_idx() {
+        let x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 6.0, 5.0, 4.0],
+        };
+        let y = x.max_idx(1);
+        assert_eq!((y.n_rows, y.n_columns), (2, 1));
+        assert_eq!(y.data, vec![2.0, 0.0]);
+        let y = x.max_idx(0);
+        assert_eq!((y.n_rows, y.n_columns), (1, 3));
+        assert_eq!(y.data, vec![1.0, 1.0, 1.0]);
     }
 }
