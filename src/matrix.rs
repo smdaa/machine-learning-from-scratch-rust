@@ -266,6 +266,34 @@ impl Matrix {
         mat
     }
 
+    pub fn max(&self, axis: i32) -> Self {
+        match axis {
+            0 => Self {
+                n_rows: 1,
+                n_columns: self.n_columns,
+                data: (0..self.n_columns)
+                    .map(|col_idx| {
+                        self.data
+                            .iter()
+                            .skip(col_idx)
+                            .step_by(self.n_columns)
+                            .fold(std::f32::MIN, |a, b| a.max(*b))
+                    })
+                    .collect(),
+            },
+            1 => Self {
+                n_rows: self.n_rows,
+                n_columns: 1,
+                data: self
+                    .data
+                    .chunks(self.n_columns)
+                    .map(|row| row.iter().fold(std::f32::MIN, |a, b| a.max(*b)))
+                    .collect(),
+            },
+            _ => panic!("Invalid option"),
+        }
+    }
+
     pub fn sum(&self, axis: i32) -> Self {
         match axis {
             0 => Self {
@@ -288,23 +316,92 @@ impl Matrix {
         }
     }
 
-    pub fn add_to_rows(&mut self, row: &Matrix) {
-        assert_eq!(self.n_columns, row.n_columns);
-        assert_eq!(1, row.n_rows);
-        self.data.chunks_mut(self.n_columns).for_each(|row_| {
-            row_.iter_mut()
-                .zip(row.data.iter())
-                .for_each(|(x, y)| *x = *x + *y)
-        });
+    pub fn element_wise_operation_row(&mut self, other_row: &Self, op: impl Fn(f32, f32) -> f32) {
+        assert_eq!(self.n_columns, other_row.n_columns);
+        assert_eq!(1, other_row.n_rows);
+        self.data.chunks_mut(self.n_columns).for_each(|row| {
+            row.iter_mut()
+                .zip(other_row.data.iter())
+                .for_each(|(x, y)| *x = op(*x, *y))
+        })
     }
 
-    pub fn add_to_columns(&mut self, column: &Matrix) {
-        assert_eq!(self.n_rows, column.n_rows);
-        assert_eq!(1, column.n_columns);
+    pub fn add_row(&mut self, other_row: &Self) {
+        self.element_wise_operation_row(other_row, |x, y| x + y);
+    }
+
+    pub fn subtract_row(&mut self, other_row: &Self) {
+        self.element_wise_operation_row(other_row, |x, y| x - y);
+    }
+
+    pub fn multiply_row(&mut self, other_row: &Self) {
+        self.element_wise_operation_row(other_row, |x, y| x * y);
+    }
+
+    pub fn divide_row(&mut self, other_row: &Self) {
+        self.element_wise_operation_row(other_row, |x, y| x / y);
+    }
+
+    pub fn element_wise_operation_column(
+        &mut self,
+        other_column: &Self,
+        op: impl Fn(f32, f32) -> f32,
+    ) {
+        assert_eq!(self.n_rows, other_column.n_rows);
+        assert_eq!(1, other_column.n_columns);
         for i in 0..self.n_rows {
             for j in 0..self.n_columns {
-                self.data[i * self.n_columns + j] += column.data[i]
+                self.data[i * self.n_columns + j] =
+                    op(self.data[i * self.n_columns + j], other_column.data[i]);
             }
+        }
+    }
+
+    pub fn add_column(&mut self, other_column: &Self) {
+        self.element_wise_operation_column(other_column, |x, y| x + y);
+    }
+
+    pub fn subtract_column(&mut self, other_column: &Self) {
+        self.element_wise_operation_column(other_column, |x, y| x - y);
+    }
+
+    pub fn multiply_column(&mut self, other_column: &Self) {
+        self.element_wise_operation_column(other_column, |x, y| x * y);
+    }
+
+    pub fn divide_column(&mut self, other_column: &Self) {
+        self.element_wise_operation_column(other_column, |x, y| x / y);
+    }
+
+    pub fn repeat(&self, n: usize, axis: i32) -> Self {
+        match axis {
+            0 => Self {
+                n_rows: n * self.n_rows,
+                n_columns: self.n_columns,
+                data: self
+                    .data
+                    .iter()
+                    .cloned()
+                    .cycle()
+                    .take(n * self.n_columns * self.n_rows)
+                    .collect(),
+            },
+            1 => Self {
+                n_rows: self.n_rows,
+                n_columns: n * self.n_columns,
+                data: self
+                    .data
+                    .chunks(self.n_columns)
+                    .flat_map(|row| {
+                        row.iter()
+                            .cloned()
+                            .cycle()
+                            .take(n * self.n_columns)
+                            .collect::<Vec<f32>>()
+                    })
+                    .collect(),
+            },
+            _ => panic!("Invalid option"),
         }
     }
 }
@@ -569,47 +666,258 @@ mod tests {
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-
         let sum_1 = x.sum(1);
         assert_eq!((sum_1.n_rows, sum_1.n_columns), (2, 1));
         assert_eq!(sum_1.data, vec![6.0, 15.0]);
-
         let sum_0 = x.sum(0);
         assert_eq!((sum_0.n_rows, sum_0.n_columns), (1, 3));
         assert_eq!(sum_0.data, vec![5.0, 7.0, 9.0]);
+
+        let y = Matrix {
+            n_rows: 1,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        let sum_1 = y.sum(1);
+        assert_eq!((sum_1.n_rows, sum_1.n_columns), (1, 1));
+        assert_eq!(sum_1.data, vec![6.0]);
+        let sum_0 = y.sum(0);
+        assert_eq!((sum_0.n_rows, sum_0.n_columns), (1, 3));
+        assert_eq!(sum_0.data, vec![1.0, 2.0, 3.0]);
+
+        let y = Matrix {
+            n_rows: 3,
+            n_columns: 1,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        let sum_1 = y.sum(1);
+        assert_eq!((sum_1.n_rows, sum_1.n_columns), (3, 1));
+        assert_eq!(sum_1.data, vec![1.0, 2.0, 3.0]);
+        let sum_0 = y.sum(0);
+        assert_eq!((sum_0.n_rows, sum_0.n_columns), (1, 1));
+        assert_eq!(sum_0.data, vec![6.0]);
     }
 
     #[test]
-    fn test_add_to_rows() {
+    fn test_max() {
+        let x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let max_1 = x.max(1);
+        assert_eq!((max_1.n_rows, max_1.n_columns), (2, 1));
+        assert_eq!(max_1.data, vec![3.0, 6.0]);
+        let max_0 = x.max(0);
+        assert_eq!((max_0.n_rows, max_0.n_columns), (1, 3));
+        assert_eq!(max_0.data, vec![4.0, 5.0, 6.0]);
+
+        let y = Matrix {
+            n_rows: 1,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        let max_1 = y.max(1);
+        assert_eq!((max_1.n_rows, max_1.n_columns), (1, 1));
+        assert_eq!(max_1.data, vec![3.0]);
+        let max_0 = y.max(0);
+        assert_eq!((max_0.n_rows, max_0.n_columns), (1, 3));
+        assert_eq!(max_0.data, vec![1.0, 2.0, 3.0]);
+        
+        let y = Matrix {
+            n_rows: 3,
+            n_columns: 1,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        let max_1 = y.max(1);
+        assert_eq!((max_1.n_rows, max_1.n_columns), (3, 1));
+        assert_eq!(max_1.data, vec![1.0, 2.0, 3.0]);
+        let max_0 = y.max(0);
+        assert_eq!((max_0.n_rows, max_0.n_columns), (1, 1));
+        assert_eq!(max_0.data, vec![3.0]);
+    }
+
+    #[test]
+    fn test_add_row() {
         let mut x = Matrix {
             n_rows: 2,
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let row = Matrix {
+        let other_row = Matrix {
             n_rows: 1,
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0],
         };
-        x.add_to_rows(&row);
+        x.add_row(&other_row);
         assert_eq!((x.n_rows, x.n_columns), (2, 3));
         assert_eq!(x.data, vec![2.0, 4.0, 6.0, 5.0, 7.0, 9.0]);
     }
 
     #[test]
-    fn test_add_to_columns() {
+    fn test_subtract_row() {
         let mut x = Matrix {
             n_rows: 2,
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let column = Matrix {
+        let other_row = Matrix {
+            n_rows: 1,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        x.subtract_row(&other_row);
+        assert_eq!((x.n_rows, x.n_columns), (2, 3));
+        assert_eq!(x.data, vec![0.0, 0.0, 0.0, 3.0, 3.0, 3.0]);
+    }
+
+    #[test]
+    fn test_multiply_row() {
+        let mut x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let other_row = Matrix {
+            n_rows: 1,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        x.multiply_row(&other_row);
+        assert_eq!((x.n_rows, x.n_columns), (2, 3));
+        assert_eq!(x.data, vec![1.0, 4.0, 9.0, 4.0, 10.0, 18.0]);
+    }
+
+    #[test]
+    fn test_divide_row() {
+        let mut x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let other_row = Matrix {
+            n_rows: 1,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        x.divide_row(&other_row);
+        assert_eq!((x.n_rows, x.n_columns), (2, 3));
+        assert_eq!(x.data, vec![1.0, 1.0, 1.0, 4.0, 2.5, 2.0]);
+    }
+
+    #[test]
+    fn test_add_column() {
+        let mut x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let other_column = Matrix {
             n_rows: 2,
             n_columns: 1,
-            data: vec![2.0, 3.0],
+            data: vec![1.0, 2.0],
         };
-        x.add_to_columns(&column);
+        x.add_column(&other_column);
         assert_eq!((x.n_rows, x.n_columns), (2, 3));
-        assert_eq!(x.data, vec![3.0, 4.0, 5.0, 7.0, 8.0, 9.0]);
+        assert_eq!(x.data, vec![2.0, 3.0, 4.0, 6.0, 7.0, 8.0]);
+    }
+
+    #[test]
+    fn test_subtract_column() {
+        let mut x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let other_column = Matrix {
+            n_rows: 2,
+            n_columns: 1,
+            data: vec![1.0, 2.0],
+        };
+        x.subtract_column(&other_column);
+        assert_eq!((x.n_rows, x.n_columns), (2, 3));
+        assert_eq!(x.data, vec![0.0, 1.0, 2.0, 2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn test_multiply_column() {
+        let mut x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let other_column = Matrix {
+            n_rows: 2,
+            n_columns: 1,
+            data: vec![1.0, 2.0],
+        };
+        x.multiply_column(&other_column);
+        assert_eq!((x.n_rows, x.n_columns), (2, 3));
+        assert_eq!(x.data, vec![1.0, 2.0, 3.0, 8.0, 10.0, 12.0]);
+    }
+
+    #[test]
+    fn test_divide_column() {
+        let mut x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let other_column = Matrix {
+            n_rows: 2,
+            n_columns: 1,
+            data: vec![1.0, 2.0],
+        };
+        x.divide_column(&other_column);
+        assert_eq!((x.n_rows, x.n_columns), (2, 3));
+        assert_eq!(x.data, vec![1.0, 2.0, 3.0, 2.0, 2.5, 3.0]);
+    }
+
+    #[test]
+    fn test_repeat() {
+        let x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let y = x.repeat(3, 0);
+        assert_eq!((y.n_rows, y.n_columns), (6, 3));
+        assert_eq!(
+            y.data,
+            vec![
+                1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 1.0, 2.0, 3.0, 4.0,
+                5.0, 6.0
+            ]
+        );
+
+        let x = Matrix {
+            n_rows: 1,
+            n_columns: 1,
+            data: vec![1.0],
+        };
+        let y = x.repeat(5, 0);
+        assert_eq!((y.n_rows, y.n_columns), (5, 1));
+        assert_eq!(y.data, vec![1.0, 1.0, 1.0, 1.0, 1.0,]);
+
+        let x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let y = x.repeat(2, 1);
+        assert_eq!((y.n_rows, y.n_columns), (2, 6));
+        assert_eq!(
+            y.data,
+            vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 4.0, 5.0, 6.0]
+        );
+
+        let x = Matrix {
+            n_rows: 1,
+            n_columns: 1,
+            data: vec![1.0],
+        };
+        let y = x.repeat(5, 1);
+        assert_eq!((y.n_rows, y.n_columns), (1, 5));
+        assert_eq!(y.data, vec![1.0, 1.0, 1.0, 1.0, 1.0,]);
     }
 }

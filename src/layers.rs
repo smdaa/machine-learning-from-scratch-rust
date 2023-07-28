@@ -15,7 +15,7 @@ pub struct LinearLayer {
 
 impl LinearLayer {
     pub fn new(in_size: usize, out_size: usize, batch_size: usize) -> Self {
-        let std_dev = 1.0 / (in_size as f32).sqrt();
+        let std_dev = (6.0_f32).sqrt() / ((in_size +out_size) as f32).sqrt();
         Self {
             in_size: in_size,
             out_size: out_size,
@@ -40,10 +40,8 @@ impl LinearLayer {
         self.dw
             .copy_from(&((self.x.transpose()).dot_matrix(upstream_grad)));
 
-        self.db.copy_from(upstream_grad);
-        let upstream_grad_sum_rows = upstream_grad.copy();
-        upstream_grad_sum_rows.sum(1);
-        self.db.add_to_rows(&upstream_grad_sum_rows);
+        let temp = upstream_grad.sum(0);
+        self.db.copy_from(&(temp.repeat(self.batch_size, 0)));
 
         self.grad
             .copy_from(&(&upstream_grad.dot_matrix(&(self.w.transpose()))));
@@ -143,7 +141,23 @@ impl CELossLayer {
         }
     }
 
-    pub fn forward(&mut self, z: &Matrix, y: &Matrix) {}
+    pub fn forward(&mut self, z: &Matrix, y: &Matrix) {
+        self.a.copy_from(z);
+        self.a.subtract_column(&(self.a.max(1)));
+        self.a.element_wise_operation(|x| x.exp());
+        self.a.divide_column(&(self.a.sum(1)));
 
-    pub fn backward(&mut self, y: &Matrix) {}
+        self.loss = y
+            .data
+            .iter()
+            .zip(self.a.data.iter())
+            .map(|(&y_n, a_n)| if y_n > 0.0 { -a_n.ln() } else { 0.0 })
+            .sum::<f32>()
+            / (self.batch_size as f32);
+    }
+
+    pub fn backward(&mut self, y: &Matrix) {
+        self.grad.copy_from(&(self.a));
+        self.grad.subtract_matrix(y);
+    }
 }
