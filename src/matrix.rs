@@ -266,27 +266,44 @@ impl Matrix {
         mat
     }
 
-    pub fn sum_columns(&mut self) {
-        for i in 0..self.n_rows {
-            let mut acc = 0.0;
-            for j in 0..self.n_columns {
-                acc += self.data[i * self.n_columns + j];
-            }
-
-            for j in 0..self.n_columns {
-                self.data[i * self.n_columns + j] = acc;
-            }
+    pub fn sum(&self, axis: i32) -> Self {
+        match axis {
+            0 => Self {
+                n_rows: 1,
+                n_columns: self.n_columns,
+                data: (0..self.n_columns)
+                    .map(|col_idx| self.data.iter().skip(col_idx).step_by(self.n_columns).sum())
+                    .collect(),
+            },
+            1 => Self {
+                n_rows: self.n_rows,
+                n_columns: 1,
+                data: self
+                    .data
+                    .chunks(self.n_columns)
+                    .map(|row| row.iter().sum())
+                    .collect(),
+            },
+            _ => panic!("Invalid option"),
         }
     }
 
-    pub fn sum_rows(&mut self) {
-        for j in 0..self.n_columns {
-            let mut acc = 0.0;
-            for i in 0..self.n_rows {
-                acc += self.data[i * self.n_columns + j];
-            }
-            for i in 0..self.n_rows {
-                self.data[i * self.n_columns + j] = acc;
+    pub fn add_to_rows(&mut self, row: &Matrix) {
+        assert_eq!(self.n_columns, row.n_columns);
+        assert_eq!(1, row.n_rows);
+        self.data.chunks_mut(self.n_columns).for_each(|row_| {
+            row_.iter_mut()
+                .zip(row.data.iter())
+                .for_each(|(x, y)| *x = *x + *y)
+        });
+    }
+
+    pub fn add_to_columns(&mut self, column: &Matrix) {
+        assert_eq!(self.n_rows, column.n_rows);
+        assert_eq!(1, column.n_columns);
+        for i in 0..self.n_rows {
+            for j in 0..self.n_columns {
+                self.data[i * self.n_columns + j] += column.data[i]
             }
         }
     }
@@ -546,18 +563,53 @@ mod tests {
     }
 
     #[test]
-    fn test_sum_columns() {
-        let mut mat = Matrix::new(2, 3, 1.0);
-        mat.sum_columns();
-        assert_eq!((mat.n_rows, mat.n_columns), (2, 3));
-        assert!(mat.data.iter().all(|&x| x == 3.0));
+    fn test_sum() {
+        let x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+
+        let sum_1 = x.sum(1);
+        assert_eq!((sum_1.n_rows, sum_1.n_columns), (2, 1));
+        assert_eq!(sum_1.data, vec![6.0, 15.0]);
+
+        let sum_0 = x.sum(0);
+        assert_eq!((sum_0.n_rows, sum_0.n_columns), (1, 3));
+        assert_eq!(sum_0.data, vec![5.0, 7.0, 9.0]);
     }
 
     #[test]
-    fn test_sum_rows() {
-        let mut mat = Matrix::new(2, 3, 1.0);
-        mat.sum_rows();
-        assert_eq!((mat.n_rows, mat.n_columns), (2, 3));
-        assert!(mat.data.iter().all(|&x| x == 2.0));
+    fn test_add_to_rows() {
+        let mut x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let row = Matrix {
+            n_rows: 1,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        x.add_to_rows(&row);
+        assert_eq!((x.n_rows, x.n_columns), (2, 3));
+        assert_eq!(x.data, vec![2.0, 4.0, 6.0, 5.0, 7.0, 9.0]);
+    }
+
+    #[test]
+    fn test_add_to_columns() {
+        let mut x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let column = Matrix {
+            n_rows: 2,
+            n_columns: 1,
+            data: vec![2.0, 3.0],
+        };
+        x.add_to_columns(&column);
+        assert_eq!((x.n_rows, x.n_columns), (2, 3));
+        assert_eq!(x.data, vec![3.0, 4.0, 5.0, 7.0, 8.0, 9.0]);
     }
 }

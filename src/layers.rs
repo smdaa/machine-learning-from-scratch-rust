@@ -41,7 +41,9 @@ impl LinearLayer {
             .copy_from(&((self.x.transpose()).dot_matrix(upstream_grad)));
 
         self.db.copy_from(upstream_grad);
-        self.db.sum_rows();
+        let upstream_grad_sum_rows = upstream_grad.copy();
+        upstream_grad_sum_rows.sum(1);
+        self.db.add_to_rows(&upstream_grad_sum_rows);
 
         self.grad
             .copy_from(&(&upstream_grad.dot_matrix(&(self.w.transpose()))));
@@ -137,27 +139,11 @@ impl CELossLayer {
             batch_size: batch_size,
             loss: 0.0,
             a: Matrix::new(batch_size, in_size, 0.0),
-            grad: Matrix::new(batch_size, 1, 0.0),
+            grad: Matrix::new(batch_size, in_size, 0.0),
         }
     }
 
-    pub fn forward(&mut self, z: &Matrix, y: &Matrix) {
-        self.a.copy_from(z);
-        self.a.element_wise_operation(|x| x.exp());
-        let mut sum_exp = self.a.copy();
-        sum_exp.sum_columns();
-        self.a.divide_matrix(&sum_exp);
+    pub fn forward(&mut self, z: &Matrix, y: &Matrix) {}
 
-        let mut temp = self.a.copy();
-        temp.element_wise_operation_matrix(y, |a_n, y_n| if y_n > 0.0 { -a_n.ln() } else { 0.0 });
-        self.loss = temp.data.iter().sum::<f32>() / (self.batch_size as f32);
-        
-    }
-
-    pub fn backward(&mut self, y: &Matrix){
-        self.grad.copy_from(y);
-        self.grad.divide_matrix(&(self.a));
-        self.grad.multiply_scalar(-1.0);
-    }
+    pub fn backward(&mut self, y: &Matrix) {}
 }
-

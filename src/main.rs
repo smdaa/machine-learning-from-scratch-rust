@@ -44,8 +44,8 @@ pub fn unbatch(batches: &Vec<Matrix>) -> Matrix {
 
 fn main() {
     // load training data
-    let x_train = Matrix::from_txt("./test_data/test_2d_clustering/2_circles/x_train.txt");
-    let y_train = Matrix::from_txt("./test_data/test_2d_clustering/2_circles/y_train.txt");
+    let x_train = Matrix::from_txt("./test_data/test_binary_clustering/2_circles/x_train.txt");
+    let y_train = Matrix::from_txt("./test_data/test_binary_clustering/2_circles/y_train.txt");
     assert_eq!(x_train.n_rows, y_train.n_rows);
 
     let n_train: usize = x_train.n_rows;
@@ -100,7 +100,9 @@ fn main() {
                 .data
                 .iter()
                 .zip(y_batch.data.iter())
-                .map(|(&y_hat_n, &y_n)| ((y_n - y_hat_n.round()).abs() < f32::EPSILON.sqrt()) as i32)
+                .map(|(&y_hat_n, &y_n)| {
+                    ((y_n - y_hat_n.round()).abs() < f32::EPSILON.sqrt()) as i32
+                })
                 .sum::<i32>();
 
             let loss = bceloss_layer.loss;
@@ -122,8 +124,8 @@ fn main() {
     );
 
     // load testing data
-    let x_test = Matrix::from_txt("./test_data/test_2d_clustering/2_circles/x_test.txt");
-    let y_test = Matrix::from_txt("./test_data/test_2d_clustering/2_circles/y_test.txt");
+    let x_test = Matrix::from_txt("./test_data/test_binary_clustering/2_circles/x_test.txt");
+    let y_test = Matrix::from_txt("./test_data/test_binary_clustering/2_circles/y_test.txt");
     assert_eq!(x_test.n_rows, y_test.n_rows);
 
     let n_test: usize = x_test.n_rows;
