@@ -1,5 +1,8 @@
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
+
+use rayon::prelude::*;
+
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::vec;
@@ -251,19 +254,49 @@ impl Matrix {
         assert_eq!(self.n_columns, other.n_rows);
         let n_rows = self.n_rows;
         let n_columns = other.n_columns;
-        let mut mat = Self::new(n_rows, n_columns, 0.0);
+        let mut mat = Matrix::new(n_rows, n_columns, 0.0);
 
-        for i in 0..n_rows {
-            for j in 0..n_columns {
-                let mut acc = 0.0;
-                for k in 0..self.n_columns {
-                    acc += self.data[i * self.n_columns + k] * other.data[k * other.n_columns + j];
+        const CHUNK_SIZE: usize = 8;
+
+        mat.data
+            .par_chunks_mut(n_columns)
+            .enumerate()
+            .for_each(|(i, row)| {
+                for j in (0..n_columns).step_by(CHUNK_SIZE) {
+                    let mut acc = [0.0; CHUNK_SIZE];
+
+                    for k in 0..self.n_columns {
+                        let self_idx = i * self.n_columns + k;
+                        let other_idx_base = k * other.n_columns + j;
+                        let remaining_chunk = CHUNK_SIZE.min(n_columns - j);
+
+                        for chunk_idx in 0..remaining_chunk {
+                            acc[chunk_idx] +=
+                                self.data[self_idx] * other.data[other_idx_base + chunk_idx];
+                        }
+                    }
+
+                    for chunk_idx in 0..CHUNK_SIZE.min(n_columns - j) {
+                        row[j + chunk_idx] = acc[chunk_idx];
+                    }
                 }
-                mat.data[i * mat.n_columns + j] = acc;
-            }
-        }
+            });
 
         mat
+    }
+
+    pub fn convolution_2d(
+        &self,
+        kernel: &Self,
+        stride: (usize, usize),
+        dilation: (usize, usize),
+        padding: (usize, usize),
+    ) -> Self {
+        let out_n_rows = ((self.n_rows + 2*padding.0 - dilation.0 *(kernel.n_rows - 1) - 1)/stride.0) + 1;
+        let out_n_columns = ((self.n_columns + 2*padding.1 - dilation.1 *(kernel.n_columns - 1) - 1)/stride.1) + 1;
+        let out = Matrix::new(out_n_rows, out_n_columns, 0.0);
+
+        out 
     }
 
     pub fn max(&self, axis: i32) -> Self {
@@ -972,5 +1005,14 @@ mod tests {
         let y = x.max_idx(0);
         assert_eq!((y.n_rows, y.n_columns), (1, 3));
         assert_eq!(y.data, vec![1.0, 1.0, 1.0]);
+    }
+    
+    #[test]
+    fn test_(){
+        let x = Matrix{
+            n_rows: 6,
+            n_columns:5,
+            data : vec![25.0, 100.0, 75.0, 49.0, 130.0, 50.0, 80.0, 0.0, 70.0, 100.0,5.0,10.0,20.0,30.0,0.0,60.0,50.0,12.0,24.0,32.0,37.0,53.0,55.0,21.0,90.0,140.0,17.0,0.0,23.0,222.0]
+        };
     }
 }
