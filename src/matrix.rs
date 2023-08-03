@@ -292,11 +292,81 @@ impl Matrix {
         dilation: (usize, usize),
         padding: (usize, usize),
     ) -> Self {
-        let out_n_rows = ((self.n_rows + 2*padding.0 - dilation.0 *(kernel.n_rows - 1) - 1)/stride.0) + 1;
-        let out_n_columns = ((self.n_columns + 2*padding.1 - dilation.1 *(kernel.n_columns - 1) - 1)/stride.1) + 1;
-        let out = Matrix::new(out_n_rows, out_n_columns, 0.0);
+        assert!(stride.0 >= 1 && stride.1 >= 1);
+        assert!(dilation.0 >= 1 && dilation.1 >= 1);
+        assert!(kernel.n_rows % 2 == 1 && kernel.n_columns % 2 == 1);
+        assert!(self.n_rows + 2 * padding.0 >= kernel.n_rows);
+        assert!(self.n_columns + 2 * padding.1 >= kernel.n_columns);
+        let out_n_rows =
+            ((self.n_rows + 2 * padding.0 - dilation.0 * (kernel.n_rows - 1) - 1) / stride.0) + 1;
+        let out_n_columns =
+            ((self.n_columns + 2 * padding.1 - dilation.1 * (kernel.n_columns - 1) - 1) / stride.1)
+                + 1;
+        assert!(out_n_rows > 0 && out_n_columns > 0);
 
-        out 
+        let mut out = Matrix::new(out_n_rows, out_n_columns, 0.0);
+        let kernel_center_row = kernel.n_rows / 2;
+        let kernel_center_column = kernel.n_columns / 2;
+
+        for i in 0..out_n_rows {
+            for j in 0..out_n_columns {
+                let start_row = i * stride.0;
+                let start_col = j * stride.1;
+
+                let mut patch = self.extract_patch(
+                    start_row,
+                    start_col,
+                    kernel.n_rows,
+                    kernel.n_columns,
+                    dilation.0,
+                    dilation.1,
+                    padding.0,
+                    padding.1,
+                );
+
+                patch.multiply_matrix(kernel);
+                out.data[i * out_n_columns + j] = patch.data.iter().sum::<f32>();
+            }
+        }
+
+        out
+    }
+
+    fn extract_patch(
+        &self,
+        start_row: usize,
+        start_col: usize,
+        patch_n_rows: usize,
+        patch_n_columns: usize,
+        dilation_row: usize,
+        dilation_col: usize,
+        padding_row: usize,
+        padding_col: usize,
+    ) -> Matrix {
+        let patch_row_indices = (0..patch_n_rows).map(|r| start_row + r * dilation_row);
+        let patch_col_indices = (0..patch_n_columns).map(|c| start_col + c * dilation_col);
+        let data = patch_row_indices
+            .flat_map(|r| {
+                patch_col_indices.clone().map(move |c| {
+                    if r >= padding_row
+                        && r < self.n_rows + padding_row
+                        && c >= padding_col
+                        && c < self.n_columns + padding_col
+                    {
+                        let input_index = (r - padding_row) * self.n_columns + (c - padding_col);
+                        self.data[input_index]
+                    } else {
+                        0.0
+                    }
+                })
+            })
+            .collect();
+
+        Matrix {
+            n_rows: patch_n_rows,
+            n_columns: patch_n_columns,
+            data,
+        }
     }
 
     pub fn max(&self, axis: i32) -> Self {
@@ -1006,13 +1076,33 @@ mod tests {
         assert_eq!((y.n_rows, y.n_columns), (1, 3));
         assert_eq!(y.data, vec![1.0, 1.0, 1.0]);
     }
-    
+
     #[test]
-    fn test_(){
-        let x = Matrix{
-            n_rows: 6,
-            n_columns:5,
-            data : vec![25.0, 100.0, 75.0, 49.0, 130.0, 50.0, 80.0, 0.0, 70.0, 100.0,5.0,10.0,20.0,30.0,0.0,60.0,50.0,12.0,24.0,32.0,37.0,53.0,55.0,21.0,90.0,140.0,17.0,0.0,23.0,222.0]
+    fn test_convolution_2d() {
+        let x = Matrix {
+            n_rows: 5,
+            n_columns: 5,
+            data: vec![
+                1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0,
+                0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0,
+            ],
         };
+        let kernel = Matrix {
+            n_rows: 3,
+            n_columns: 3,
+            data: vec![1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+        };
+        let y = x.convolution_2d(&kernel, (1, 1), (1, 1), (0, 0));
+        assert_eq!((y.n_rows, y.n_columns), (3, 3));
+        assert_eq!(y.data, vec![4., 3., 4., 2., 4., 3., 2., 3., 4.]);
+        let y = x.convolution_2d(&kernel, (2, 1), (1, 1), (0, 0));
+        assert_eq!((y.n_rows, y.n_columns), (2, 3));
+        assert_eq!(y.data, vec![4., 3., 4., 2., 3., 4.]);
+        let y = x.convolution_2d(&kernel, (2, 1), (1, 1), (2, 0));
+        assert_eq!((y.n_rows, y.n_columns), (4, 3));
+        assert_eq!(y.data, vec![2., 1., 1., 4., 3., 4., 2., 3., 4., 1., 1., 1.]);
+        let y = x.convolution_2d(&kernel, (2, 1), (1, 2), (2, 0));
+        assert_eq!((y.n_rows, y.n_columns), (4, 1));
+        assert_eq!(y.data, vec![1., 3., 2., 0.]);
     }
 }

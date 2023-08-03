@@ -1,9 +1,9 @@
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-n = 1_000_000
-dim = 3
-c = 10
+n = 200_000
+dim = 32
+c = 3
 x = np.random.randn(n, dim)
 y = np.zeros((n, c))
 

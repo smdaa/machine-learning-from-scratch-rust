@@ -54,7 +54,7 @@ pub fn test_mnist() {
     let out_size: usize = 10;
     let learning_rate = 0.01;
     let batch_size: usize = 64;
-    let n_epochs = 200;
+    let n_epochs = 20;
 
     // create batches
     let x_batches = batch(&x_train, batch_size);
@@ -166,11 +166,11 @@ pub fn test_random() {
 
     let n_train: usize = x_train.n_rows;
     let in_size: usize = x_train.n_columns;
-    let hidden_size = 128;
-    let out_size: usize = 10;
-    let learning_rate = 0.1;
-    let batch_size: usize = 64;
-    let n_epochs = 100;
+    let hidden_size = 64;
+    let out_size: usize = 3;
+    let learning_rate = 0.01;
+    let batch_size: usize = 32;
+    let n_epochs = 1000;
 
     // create batches
     let x_batches = batch(&x_train, batch_size);
@@ -393,22 +393,9 @@ pub fn test_2_circles() {
 }
 
 fn main() {
-    let x = Matrix::new(50, 100, 1.0);
 
-    let kernel = Matrix::new(3, 5, 1.0);
-    
-    let y = x.convolution_2d(&kernel, (2, 1), (3, 1), (4, 2));
-    
-    println!("{:?}", x.shape());
-    x.print();
-    println!("---------------");
-    println!("{:?}", kernel.shape());
-    kernel.print();
-    println!("---------------");
-    println!("{:?}", y.shape());
-    y.print();
-    exit(0);
-    //test_mnist();
-    //test_2_circles();
+
+    // test_mnist();
+    // test_2_circles();
     //test_random();
 }
