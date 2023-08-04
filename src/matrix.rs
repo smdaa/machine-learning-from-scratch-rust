@@ -1,14 +1,12 @@
+use num_traits::float::Float;
+use rand::Rng;
+use rand_distr::{uniform::SampleUniform, Distribution, Normal};
+use rayon::prelude::*;
 use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str::FromStr;
 use std::vec;
-
-use rayon::prelude::*;
-
-use num_traits::float::Float;
-use rand::Rng;
-use rand_distr::{uniform::SampleUniform, Distribution, Normal};
 
 pub struct Matrix<T> {
     pub n_rows: usize,
@@ -22,6 +20,14 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
             n_rows: n_rows,
             n_columns: n_columns,
             data: vec![value; n_rows * n_columns],
+        }
+    }
+
+    pub fn zeros(n_rows: usize, n_columns: usize) -> Self {
+        Self {
+            n_rows: n_rows,
+            n_columns: n_columns,
+            data: vec![T::zero(); n_rows * n_columns],
         }
     }
 
@@ -123,18 +129,15 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
         }
     }
 
-    // TODO change this to a clone trait
-    pub fn copy(&self) -> Self {
-        let new_data: Vec<T> = self.data.clone();
-
+    pub fn clone(&self) -> Self {
         Self {
             n_rows: self.n_rows,
             n_columns: self.n_columns,
-            data: new_data,
+            data: self.data.clone(),
         }
     }
 
-    pub fn copy_from(&mut self, other: &Self) {
+    pub fn copy_content_from(&mut self, other: &Self) {
         assert_eq!(
             (self.n_rows, self.n_columns),
             (other.n_rows, other.n_columns),
@@ -241,8 +244,7 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
         let n_rows = self.n_rows;
         let n_columns = other.n_columns;
         let mut mat: Matrix<T> = Matrix::new(n_rows, n_columns, T::zero());
-
-        const CHUNK_SIZE: usize = 32;
+        const CHUNK_SIZE: usize = 4;
 
         mat.data
             .par_chunks_mut(n_columns)
@@ -267,6 +269,15 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
                     }
                 }
             });
+
+        mat
+    }
+
+    pub fn dot_matrix_strassen(&self, other: &Self) -> Self {
+        assert_eq!(self.n_columns, other.n_rows);
+        let n_rows = self.n_rows;
+        let n_columns = other.n_columns;
+        let  mat: Matrix<T> = Matrix::new(n_rows, n_columns, T::zero());
 
         mat
     }
@@ -502,11 +513,19 @@ mod tests {
 
     use super::*;
     #[test]
-    fn test_new_matrix() {
+    fn test_new() {
         let mat: Matrix<f32> = Matrix::new(100, 100, 1.0);
         assert_eq!(mat.n_rows, 100);
         assert_eq!(mat.n_columns, 100);
         assert!(mat.data.iter().all(|&x| x == 1.0));
+    }
+
+    #[test]
+    fn test_zeros() {
+        let mat: Matrix<f32> = Matrix::zeros(100, 100);
+        assert_eq!(mat.n_rows, 100);
+        assert_eq!(mat.n_columns, 100);
+        assert!(mat.data.iter().all(|&x| x == 0.0));
     }
 
     #[test]
@@ -574,7 +593,7 @@ mod tests {
     #[test]
     fn test_copy() {
         let mat: Matrix<f32> = Matrix::new(12, 13, 2.0);
-        let mat_copy: Matrix<f32> = mat.copy();
+        let mat_copy: Matrix<f32> = mat.clone();
         assert_eq!(
             (mat.n_rows, mat.n_columns),
             (mat_copy.n_rows, mat_copy.n_columns)
@@ -583,9 +602,9 @@ mod tests {
     }
 
     #[test]
-    fn test_copy_from() {
+    fn test_copy_content_from() {
         let mut mat = Matrix::new(12, 13, 2.0);
-        mat.copy_from(&Matrix::new(12, 13, 1.0));
+        mat.copy_content_from(&Matrix::new(12, 13, 1.0));
         assert_eq!((mat.n_rows, mat.n_columns), (12, 13));
         assert!(mat.data.iter().all(|&x| x == 1.0));
     }
