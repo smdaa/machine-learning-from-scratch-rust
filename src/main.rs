@@ -5,26 +5,29 @@
 
 use std::process::exit;
 
-mod layers;
+use image::{ImageBuffer, RgbImage};
+
+//mod layers;
 mod matrix;
 
-use layers::*;
+//use layers::*;
 use matrix::*;
 
+/*
 pub fn batch(x: &Matrix, batch_size: usize) -> Vec<Matrix> {
     let n_rows = x.n_rows;
     let n_columns = x.n_columns;
     let n_batches = n_rows / batch_size;
-
+    
     let batches = (0..n_batches)
-        .map(|i| {
-            let start_idx = i * batch_size;
-            let end_idx = start_idx + batch_size;
-            x.slice((start_idx, end_idx - 1), (0, n_columns - 1))
-        })
-        .collect();
+    .map(|i| {
+        let start_idx = i * batch_size;
+        let end_idx = start_idx + batch_size;
+        x.slice((start_idx, end_idx - 1), (0, n_columns - 1))
+    })
+    .collect();
 
-    batches
+batches
 }
 
 pub fn unbatch(batches: &Vec<Matrix>) -> Matrix {
@@ -392,10 +395,79 @@ pub fn test_2_circles() {
     );
 }
 
-fn main() {
+*/
 
+
+fn main() {
+    /*
+    
+    let input_image_height = 500;
+    let input_image_width = 500;
+
+    let input_image_red = Matrix::rand(input_image_height, input_image_width, 0.0, 1.0);
+    let input_image_green = Matrix::rand(input_image_height, input_image_width, 0.0, 1.0);
+    let input_image_blue = Matrix::rand(input_image_height, input_image_width, 0.0, 1.0);
+
+    //let input_image_red = Matrix::new(input_image_height, input_image_width, 0.5);
+    //let input_image_green = Matrix::new(input_image_height, input_image_width, 0.5);
+    //let input_image_blue = Matrix::new(input_image_height, input_image_width, 0.5);
+
+    let input_image = vec![
+        input_image_red.copy(),
+        input_image_green.copy(),
+        input_image_blue.copy(),
+    ];
+    let input_batch = vec![input_image];
+
+    let mut layer = Conv2dLayer::new(
+        1,
+        3,
+        3,
+        (input_image_height, input_image_width),
+        (3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+    );
+    layer.forward(&input_batch);
+    let output_image_red = layer.output[0][0].copy();
+    let output_image_green = layer.output[0][1].copy();
+    let output_image_blue = layer.output[0][2].copy();
+    let output_image_height = output_image_red.n_rows;
+    let output_image_width = output_image_red.n_columns;
+
+    let mut input_image_file: RgbImage = ImageBuffer::new(
+        input_image_width.try_into().unwrap(),
+        input_image_height.try_into().unwrap(),
+    );
+    for i in 0..input_image_height {
+        for j in 0..input_image_width {
+            let red = (255.0 * input_image_red.data[i * input_image_width + j]) as u8;
+            let green = (255.0 * input_image_green.data[i * input_image_width + j]) as u8;
+            let blue = (255.0 * input_image_blue.data[i * input_image_width + j]) as u8;
+            *input_image_file.get_pixel_mut(j.try_into().unwrap(), i.try_into().unwrap()) =
+                image::Rgb([red, green, blue]);
+        }
+    }
+    input_image_file.save("input.png").unwrap();
+
+    let mut output_image_file: RgbImage = ImageBuffer::new(
+        output_image_width.try_into().unwrap(),
+        output_image_height.try_into().unwrap(),
+    );
+    for i in 0..output_image_height {
+        for j in 0..output_image_width {
+            let red = (255.0 * output_image_red.data[i * output_image_width + j]) as u8;
+            let green = (255.0 * output_image_green.data[i * output_image_width + j]) as u8;
+            let blue = (255.0 * output_image_blue.data[i * output_image_width + j]) as u8;
+            *output_image_file.get_pixel_mut(j.try_into().unwrap(), i.try_into().unwrap()) =
+                image::Rgb([red, green, blue]);
+        }
+    }
+    output_image_file.save("output.png").unwrap();
 
     // test_mnist();
     // test_2_circles();
     //test_random();
+    */
 }

@@ -20,8 +20,8 @@ impl LinearLayer {
             in_size: in_size,
             out_size: out_size,
             batch_size: batch_size,
-            w: Matrix::randn(in_size, out_size, -std_dev, std_dev),
-            b: Matrix::randn(batch_size, out_size, -std_dev, std_dev),
+            w: Matrix::rand(in_size, out_size, -std_dev, std_dev),
+            b: Matrix::rand(batch_size, out_size, -std_dev, std_dev),
             z: Matrix::new(batch_size, out_size, 0.0),
             x: Matrix::new(batch_size, in_size, 0.0),
             dw: Matrix::new(in_size, out_size, 0.0),
@@ -222,7 +222,7 @@ impl Conv2dLayer {
             weight: (0..out_channels)
                 .map(|_| {
                     (0..in_channels)
-                        .map(|_| Matrix::randn(kernel_shape.0, kernel_shape.1, -std_dev, std_dev))
+                        .map(|_| Matrix::rand(kernel_shape.0, kernel_shape.1, -std_dev, std_dev))
                         .collect()
                 })
                 .collect(),

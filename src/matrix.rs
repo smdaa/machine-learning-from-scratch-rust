@@ -1,20 +1,23 @@
-use rand::Rng;
-use rand_distr::{Distribution, Normal};
+use std::fmt::{Debug, Display};
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::str::FromStr;
+use std::vec;
 
 use rayon::prelude::*;
 
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::vec;
+use num_traits::float::Float;
+use rand::Rng;
+use rand_distr::{uniform::SampleUniform, Distribution, Normal};
 
-pub struct Matrix {
+pub struct Matrix<T> {
     pub n_rows: usize,
     pub n_columns: usize,
-    pub data: Vec<f32>,
+    pub data: Vec<T>,
 }
 
-impl Matrix {
-    pub fn new(n_rows: usize, n_columns: usize, value: f32) -> Self {
+impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
+    pub fn new(n_rows: usize, n_columns: usize, value: T) -> Self {
         Self {
             n_rows: n_rows,
             n_columns: n_columns,
@@ -24,7 +27,13 @@ impl Matrix {
 
     pub fn eye(size: usize) -> Self {
         let data = (0..size * size)
-            .map(|i| if i % (size + 1) == 0 { 1.0 } else { 0.0 })
+            .map(|i| {
+                if i % (size + 1) == 0 {
+                    T::one()
+                } else {
+                    T::zero()
+                }
+            })
             .collect();
 
         Self {
@@ -34,7 +43,7 @@ impl Matrix {
         }
     }
 
-    pub fn randn(n_rows: usize, n_columns: usize, low: f32, high: f32) -> Self {
+    pub fn rand(n_rows: usize, n_columns: usize, low: T, high: T) -> Self {
         let mut rng = rand::thread_rng();
         let data = (0..n_columns * n_rows)
             .map(|_| rng.gen_range(low..=high))
@@ -47,35 +56,13 @@ impl Matrix {
         }
     }
 
-    pub fn randn_truncated(
-        n_rows: usize,
-        n_columns: usize,
-        mean: f32,
-        std_dev: f32,
-        lo: f32,
-        hi: f32,
-    ) -> Self {
-        let normal = Normal::new(mean, std_dev).unwrap();
-        let data: Vec<f32> = normal
-            .sample_iter(&mut rand::thread_rng())
-            .filter(|&value| lo <= value && value <= hi)
-            .take(n_rows * n_columns)
-            .collect();
-
-        Self {
-            n_rows: n_rows,
-            n_columns: n_columns,
-            data: data,
-        }
-    }
-
     pub fn from_str(string: &str) -> Self {
         let n_rows = string.split(",").count();
         let n_columns = string.split(',').next().unwrap().split_whitespace().count();
-        let data: Vec<f32> = string
+        let data: Vec<T> = string
             .replace(",", "")
             .split(" ")
-            .filter_map(|v| v.trim().parse::<f32>().ok())
+            .filter_map(|v| v.trim().parse::<T>().ok())
             .collect();
 
         Self {
@@ -85,35 +72,33 @@ impl Matrix {
         }
     }
 
-    pub fn from_txt(path: &str) -> Self {
+    pub fn from_txt(path: &str) -> Self
+    where
+        <T as FromStr>::Err: Debug,
+    {
         let file = match File::open(path) {
             Ok(file) => file,
             Err(err) => {
                 panic!("Error opening file: {}", err);
             }
         };
-
         let lines: Vec<String> = BufReader::new(file)
             .lines()
             .map(|line| line.expect("Error reading line"))
             .collect();
-
         let n_rows = lines.len();
         let n_columns = lines[0].split_whitespace().count();
-
         let mut data = Vec::new();
         for line in lines {
-            let values: Vec<f32> = line
+            let values: Vec<T> = line
                 .split_whitespace()
                 .map(|value| value.parse().expect("Error parsing float"))
                 .collect();
             data.extend(values);
         }
-
         if data.len() != n_rows * n_columns {
             panic!("Inconsistent number of columns in the file.");
         }
-
         Self {
             n_rows,
             n_columns,
@@ -138,8 +123,9 @@ impl Matrix {
         }
     }
 
+    // TODO change this to a clone trait
     pub fn copy(&self) -> Self {
-        let new_data: Vec<f32> = self.data.clone();
+        let new_data: Vec<T> = self.data.clone();
 
         Self {
             n_rows: self.n_rows,
@@ -148,7 +134,7 @@ impl Matrix {
         }
     }
 
-    pub fn copy_from(&mut self, other: &Matrix) {
+    pub fn copy_from(&mut self, other: &Self) {
         assert_eq!(
             (self.n_rows, self.n_columns),
             (other.n_rows, other.n_columns),
@@ -160,13 +146,13 @@ impl Matrix {
             .for_each(|(x, y)| *x = *y);
     }
 
-    pub fn is_equal(&self, mat: &Matrix) -> bool {
+    pub fn is_equal(&self, mat: &Self) -> bool {
         self.shape() == mat.shape()
             && self
                 .data
                 .iter()
                 .zip(mat.data.iter())
-                .all(|(&a, &b)| (a - b).abs() < f32::EPSILON.sqrt())
+                .all(|(&a, &b)| (a - b).abs() < T::epsilon())
     }
 
     pub fn transpose(&self) -> Self {
@@ -206,23 +192,23 @@ impl Matrix {
         }
     }
 
-    pub fn element_wise_operation(&mut self, op: impl Fn(f32) -> f32) {
+    pub fn element_wise_operation(&mut self, op: impl Fn(T) -> T) {
         self.data.iter_mut().for_each(|x| *x = op(*x));
     }
 
-    pub fn add_scalar(&mut self, scalar: f32) {
+    pub fn add_scalar(&mut self, scalar: T) {
         self.element_wise_operation(|x| scalar + x);
     }
 
-    pub fn subtract_scalar(&mut self, scalar: f32) {
+    pub fn subtract_scalar(&mut self, scalar: T) {
         self.element_wise_operation(|x| x - scalar);
     }
 
-    pub fn multiply_scalar(&mut self, scalar: f32) {
+    pub fn multiply_scalar(&mut self, scalar: T) {
         self.element_wise_operation(|x| x * scalar);
     }
 
-    pub fn element_wise_operation_matrix(&mut self, other: &Self, op: impl Fn(f32, f32) -> f32) {
+    pub fn element_wise_operation_matrix(&mut self, other: &Self, op: impl Fn(T, T) -> T) {
         assert_eq!(
             (self.n_rows, self.n_columns),
             (other.n_rows, other.n_columns),
@@ -254,16 +240,16 @@ impl Matrix {
         assert_eq!(self.n_columns, other.n_rows);
         let n_rows = self.n_rows;
         let n_columns = other.n_columns;
-        let mut mat = Matrix::new(n_rows, n_columns, 0.0);
+        let mut mat: Matrix<T> = Matrix::new(n_rows, n_columns, T::zero());
 
-        const CHUNK_SIZE: usize = 8;
+        const CHUNK_SIZE: usize = 32;
 
         mat.data
             .par_chunks_mut(n_columns)
             .enumerate()
             .for_each(|(i, row)| {
                 for j in (0..n_columns).step_by(CHUNK_SIZE) {
-                    let mut acc = [0.0; CHUNK_SIZE];
+                    let mut acc = [T::zero(); CHUNK_SIZE];
 
                     for k in 0..self.n_columns {
                         let self_idx = i * self.n_columns + k;
@@ -271,8 +257,8 @@ impl Matrix {
                         let remaining_chunk = CHUNK_SIZE.min(n_columns - j);
 
                         for chunk_idx in 0..remaining_chunk {
-                            acc[chunk_idx] +=
-                                self.data[self_idx] * other.data[other_idx_base + chunk_idx];
+                            acc[chunk_idx] = acc[chunk_idx]
+                                + self.data[self_idx] * other.data[other_idx_base + chunk_idx];
                         }
                     }
 
@@ -285,91 +271,7 @@ impl Matrix {
         mat
     }
 
-    pub fn convolution_2d(
-        &self,
-        kernel: &Self,
-        stride: (usize, usize),
-        dilation: (usize, usize),
-        padding: (usize, usize),
-    ) -> Self {
-        assert!(stride.0 >= 1 && stride.1 >= 1);
-        assert!(dilation.0 >= 1 && dilation.1 >= 1);
-        assert!(kernel.n_rows % 2 == 1 && kernel.n_columns % 2 == 1);
-        assert!(self.n_rows + 2 * padding.0 >= kernel.n_rows);
-        assert!(self.n_columns + 2 * padding.1 >= kernel.n_columns);
-        let out_n_rows =
-            ((self.n_rows + 2 * padding.0 - dilation.0 * (kernel.n_rows - 1) - 1) / stride.0) + 1;
-        let out_n_columns =
-            ((self.n_columns + 2 * padding.1 - dilation.1 * (kernel.n_columns - 1) - 1) / stride.1)
-                + 1;
-        assert!(out_n_rows > 0 && out_n_columns > 0);
-
-        let mut out = Matrix::new(out_n_rows, out_n_columns, 0.0);
-        let kernel_center_row = kernel.n_rows / 2;
-        let kernel_center_column = kernel.n_columns / 2;
-
-        for i in 0..out_n_rows {
-            for j in 0..out_n_columns {
-                let start_row = i * stride.0;
-                let start_col = j * stride.1;
-
-                let mut patch = self.extract_patch(
-                    start_row,
-                    start_col,
-                    kernel.n_rows,
-                    kernel.n_columns,
-                    dilation.0,
-                    dilation.1,
-                    padding.0,
-                    padding.1,
-                );
-
-                patch.multiply_matrix(kernel);
-                out.data[i * out_n_columns + j] = patch.data.iter().sum::<f32>();
-            }
-        }
-
-        out
-    }
-
-    fn extract_patch(
-        &self,
-        start_row: usize,
-        start_col: usize,
-        patch_n_rows: usize,
-        patch_n_columns: usize,
-        dilation_row: usize,
-        dilation_col: usize,
-        padding_row: usize,
-        padding_col: usize,
-    ) -> Matrix {
-        let patch_row_indices = (0..patch_n_rows).map(|r| start_row + r * dilation_row);
-        let patch_col_indices = (0..patch_n_columns).map(|c| start_col + c * dilation_col);
-        let data = patch_row_indices
-            .flat_map(|r| {
-                patch_col_indices.clone().map(move |c| {
-                    if r >= padding_row
-                        && r < self.n_rows + padding_row
-                        && c >= padding_col
-                        && c < self.n_columns + padding_col
-                    {
-                        let input_index = (r - padding_row) * self.n_columns + (c - padding_col);
-                        self.data[input_index]
-                    } else {
-                        0.0
-                    }
-                })
-            })
-            .collect();
-
-        Matrix {
-            n_rows: patch_n_rows,
-            n_columns: patch_n_columns,
-            data,
-        }
-    }
-
-    pub fn max(&self, axis: i32) -> Self {
+    pub fn reduce_over_axis(&self, axis: i32, mut op: impl FnMut(T, T) -> T, init: T) -> Self {
         match axis {
             0 => Self {
                 n_rows: 1,
@@ -380,7 +282,7 @@ impl Matrix {
                             .iter()
                             .skip(col_idx)
                             .step_by(self.n_columns)
-                            .fold(std::f32::MIN, |a, b| a.max(*b))
+                            .fold(init, |a, &b| op(a, b))
                     })
                     .collect(),
             },
@@ -390,36 +292,41 @@ impl Matrix {
                 data: self
                     .data
                     .chunks(self.n_columns)
-                    .map(|row| row.iter().fold(std::f32::MIN, |a, b| a.max(*b)))
+                    .map(|row| row.iter().fold(init, |a, &b| op(a, b)))
                     .collect(),
             },
             _ => panic!("Invalid option"),
         }
     }
 
+    pub fn reduce_all(&self, mut op: impl FnMut(T, T) -> T, init: T) -> T {
+        self.data.iter().fold(init, |a, &b| op(a, b))
+    }
     pub fn sum(&self, axis: i32) -> Self {
-        match axis {
-            0 => Self {
-                n_rows: 1,
-                n_columns: self.n_columns,
-                data: (0..self.n_columns)
-                    .map(|col_idx| self.data.iter().skip(col_idx).step_by(self.n_columns).sum())
-                    .collect(),
-            },
-            1 => Self {
-                n_rows: self.n_rows,
-                n_columns: 1,
-                data: self
-                    .data
-                    .chunks(self.n_columns)
-                    .map(|row| row.iter().sum())
-                    .collect(),
-            },
-            _ => panic!("Invalid option"),
-        }
+        self.reduce_over_axis(axis, |a, b| a + b, T::zero())
     }
 
-    pub fn element_wise_operation_row(&mut self, other_row: &Self, op: impl Fn(f32, f32) -> f32) {
+    pub fn sum_all(&self) -> T {
+        self.reduce_all(|a, b| a + b, T::zero())
+    }
+
+    pub fn max(&self, axis: i32) -> Self {
+        self.reduce_over_axis(axis, |a, b| a.max(b), T::min_value())
+    }
+
+    pub fn max_all(&self) -> T {
+        self.reduce_all(|a, b| a.max(b), T::min_value())
+    }
+
+    pub fn min(&self, axis: i32) -> Self {
+        self.reduce_over_axis(axis, |a, b| a.min(b), T::max_value())
+    }
+
+    pub fn min_all(&self) -> T {
+        self.reduce_all(|a, b| a.min(b), T::max_value())
+    }
+
+    pub fn element_wise_operation_row(&mut self, other_row: &Self, op: impl Fn(T, T) -> T) {
         assert_eq!(self.n_columns, other_row.n_columns);
         assert_eq!(1, other_row.n_rows);
         self.data.chunks_mut(self.n_columns).for_each(|row| {
@@ -445,11 +352,7 @@ impl Matrix {
         self.element_wise_operation_row(other_row, |x, y| x / y);
     }
 
-    pub fn element_wise_operation_column(
-        &mut self,
-        other_column: &Self,
-        op: impl Fn(f32, f32) -> f32,
-    ) {
+    pub fn element_wise_operation_column(&mut self, other_column: &Self, op: impl Fn(T, T) -> T) {
         assert_eq!(self.n_rows, other_column.n_rows);
         assert_eq!(1, other_column.n_columns);
         for i in 0..self.n_rows {
@@ -500,7 +403,7 @@ impl Matrix {
                             .cloned()
                             .cycle()
                             .take(n * self.n_columns)
-                            .collect::<Vec<f32>>()
+                            .collect::<Vec<T>>()
                     })
                     .collect(),
             },
@@ -508,41 +411,88 @@ impl Matrix {
         }
     }
 
-    pub fn max_idx(&self, axis: i32) -> Self {
-        match axis {
-            0 => Self {
-                n_rows: 1,
-                n_columns: self.n_columns,
-                data: (0..self.n_columns)
-                    .map(|col_idx| {
-                        self.data
-                            .iter()
-                            .skip(col_idx)
-                            .step_by(self.n_columns)
-                            .enumerate()
-                            .max_by(|(_, a), (_, b)| a.total_cmp(b))
-                            .map(|(index, _)| (index as f32))
-                            .unwrap()
-                    })
-                    .collect(),
-            },
-            1 => Self {
-                n_rows: self.n_rows,
-                n_columns: 1,
-                data: self
-                    .data
-                    .chunks(self.n_columns)
-                    .map(|row| {
-                        row.iter()
-                            .enumerate()
-                            .max_by(|(_, a), (_, b)| a.total_cmp(b))
-                            .map(|(index, _)| (index as f32))
-                            .unwrap()
-                    })
-                    .collect(),
-            },
+    pub fn convolution_2d(
+        &self,
+        kernel: &Self,
+        stride: (usize, usize),
+        dilation: (usize, usize),
+        padding: (usize, usize),
+    ) -> Self {
+        assert!(stride.0 >= 1 && stride.1 >= 1);
+        assert!(dilation.0 >= 1 && dilation.1 >= 1);
+        assert!(kernel.n_rows % 2 == 1 && kernel.n_columns % 2 == 1);
+        assert!(self.n_rows + 2 * padding.0 >= kernel.n_rows);
+        assert!(self.n_columns + 2 * padding.1 >= kernel.n_columns);
+        let out_n_rows =
+            ((self.n_rows + 2 * padding.0 - dilation.0 * (kernel.n_rows - 1) - 1) / stride.0) + 1;
+        let out_n_columns =
+            ((self.n_columns + 2 * padding.1 - dilation.1 * (kernel.n_columns - 1) - 1) / stride.1)
+                + 1;
+        assert!(out_n_rows > 0 && out_n_columns > 0);
 
-            _ => panic!("Invalid option"),
+        let mut out = Matrix::new(out_n_rows, out_n_columns, T::zero());
+        let kernel_center_row = kernel.n_rows / 2;
+        let kernel_center_column = kernel.n_columns / 2;
+
+        for i in 0..out_n_rows {
+            for j in 0..out_n_columns {
+                let start_row = i * stride.0;
+                let start_col = j * stride.1;
+
+                let mut patch = self.extract_patch(
+                    start_row,
+                    start_col,
+                    kernel.n_rows,
+                    kernel.n_columns,
+                    dilation.0,
+                    dilation.1,
+                    padding.0,
+                    padding.1,
+                );
+
+                patch.multiply_matrix(kernel);
+                out.data[i * out_n_columns + j] =
+                    patch.data.iter().fold(T::zero(), |acc, &x| acc + x);
+            }
+        }
+
+        out
+    }
+
+    fn extract_patch(
+        &self,
+        start_row: usize,
+        start_col: usize,
+        patch_n_rows: usize,
+        patch_n_columns: usize,
+        dilation_row: usize,
+        dilation_col: usize,
+        padding_row: usize,
+        padding_col: usize,
+    ) -> Self {
+        let patch_row_indices = (0..patch_n_rows).map(|r| start_row + r * dilation_row);
+        let patch_col_indices = (0..patch_n_columns).map(|c| start_col + c * dilation_col);
+        let data = patch_row_indices
+            .flat_map(|r| {
+                patch_col_indices.clone().map(move |c| {
+                    if r >= padding_row
+                        && r < self.n_rows + padding_row
+                        && c >= padding_col
+                        && c < self.n_columns + padding_col
+                    {
+                        let input_index = (r - padding_row) * self.n_columns + (c - padding_col);
+                        self.data[input_index]
+                    } else {
+                        T::zero()
+                    }
+                })
+            })
+            .collect();
+
+        Matrix {
+            n_rows: patch_n_rows,
+            n_columns: patch_n_columns,
+            data,
         }
     }
 }
@@ -553,7 +503,7 @@ mod tests {
     use super::*;
     #[test]
     fn test_new_matrix() {
-        let mat = Matrix::new(100, 100, 1.0);
+        let mat: Matrix<f32> = Matrix::new(100, 100, 1.0);
         assert_eq!(mat.n_rows, 100);
         assert_eq!(mat.n_columns, 100);
         assert!(mat.data.iter().all(|&x| x == 1.0));
@@ -561,7 +511,7 @@ mod tests {
 
     #[test]
     fn test_eye() {
-        let mat = Matrix::eye(100);
+        let mat: Matrix<f32> = Matrix::eye(100);
         assert_eq!(mat.n_rows, 100);
         assert_eq!(mat.n_columns, 100);
         for i in 0..mat.n_rows {
@@ -574,26 +524,18 @@ mod tests {
             }
         }
     }
-
     #[test]
-    fn test_randn() {
-        let mat = Matrix::randn(100, 200, -5.0, 5.0);
+    fn test_rand() {
+        let mat: Matrix<f32> = Matrix::rand(100, 200, -5.0, 5.0);
         assert_eq!(mat.n_rows, 100);
         assert_eq!(mat.n_columns, 200);
         assert!(mat.data.iter().all(|&x| -5.0 <= x && x <= 5.0));
     }
 
     #[test]
-    fn test_randn_truncated() {
-        let mat = Matrix::randn_truncated(100, 200, 0.0, 1.0, -2.0, 2.0);
-        assert_eq!(mat.n_rows, 100);
-        assert_eq!(mat.n_columns, 200);
-        assert!(mat.data.iter().all(|&x| -2.0 <= x && x <= 2.0));
-    }
-
-    #[test]
     fn test_from_str() {
-        let mat = Matrix::from_str("1.0 1.0 1.0, 2.0 2.0 2.0, 3.0 3.0 3.0, 4.0 4.0 4.0");
+        let mat: Matrix<f32> =
+            Matrix::from_str("1.0 1.0 1.0, 2.0 2.0 2.0, 3.0 3.0 3.0, 4.0 4.0 4.0");
         assert_eq!(mat.n_rows, 4);
         assert_eq!(mat.n_columns, 3);
         assert_eq!(
@@ -604,8 +546,8 @@ mod tests {
 
     #[test]
     fn test_from_txt() {
-        let x = Matrix::from_txt("./test_data/test_from_txt/x.txt");
-        let y = Matrix::from_txt("./test_data/test_from_txt/y.txt");
+        let x: Matrix<f32> = Matrix::from_txt("./test_data/test_from_txt/x.txt");
+        let y: Matrix<f32> = Matrix::from_txt("./test_data/test_from_txt/y.txt");
         assert_eq!(x.data, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
         assert_eq!(x.n_rows, 3);
         assert_eq!(x.n_columns, 3);
@@ -619,20 +561,20 @@ mod tests {
 
     #[test]
     fn test_shape() {
-        let mat = Matrix::new(10, 20, 0.0);
+        let mat: Matrix<f32> = Matrix::new(10, 20, 0.0);
         assert_eq!(mat.shape(), (10, 20));
     }
 
     #[test]
     fn test_size() {
-        let mat = Matrix::new(12, 12, 0.0);
+        let mat: Matrix<f32> = Matrix::new(12, 12, 0.0);
         assert_eq!(mat.size(), 144);
     }
 
     #[test]
     fn test_copy() {
-        let mat = Matrix::new(12, 13, 2.0);
-        let mat_copy = mat.copy();
+        let mat: Matrix<f32> = Matrix::new(12, 13, 2.0);
+        let mat_copy: Matrix<f32> = mat.copy();
         assert_eq!(
             (mat.n_rows, mat.n_columns),
             (mat_copy.n_rows, mat_copy.n_columns)
@@ -685,8 +627,8 @@ mod tests {
 
     #[test]
     fn test_slice() {
-        let mat = Matrix::eye(5);
-        let mat_slice1 = mat.slice((0, 4), (0, 4));
+        let mat: Matrix<f32> = Matrix::eye(5);
+        let mat_slice1: Matrix<f32> = mat.slice((0, 4), (0, 4));
         assert_eq!(
             (mat.n_rows, mat.n_columns),
             (mat_slice1.n_rows, mat_slice1.n_columns)
@@ -708,19 +650,6 @@ mod tests {
             .iter()
             .zip(expected_mat_slice2.data.iter())
             .all(|(&x, &y)| x == y));
-    }
-
-    #[test]
-    fn test_dot_matrix() {
-        let mat = Matrix::randn(100, 200, 0.0, 1.0);
-        let res = mat.dot_matrix(&Matrix::eye(200));
-        assert_eq!((mat.n_rows, mat.n_columns), (res.n_rows, res.n_columns));
-        assert!(mat.data.iter().zip(res.data.iter()).all(|(&x, &y)| x == y));
-        let mat1 = Matrix::new(2, 3, 2.0);
-        let mat2 = Matrix::new(3, 2, 3.0);
-        let mat3 = mat1.dot_matrix(&mat2);
-        assert_eq!((mat3.n_rows, mat3.n_columns), (2, 2));
-        assert!(mat3.data.iter().all(|&x| x == 18.0));
     }
 
     #[test]
@@ -799,6 +728,18 @@ mod tests {
         assert_eq!((mat1.n_rows, mat1.n_columns), (3, 3));
         assert!(mat1.data.iter().all(|&x| x == 2.0 / 3.0));
     }
+    #[test]
+    fn test_dot_matrix() {
+        let mat = Matrix::rand(100, 200, 0.0, 1.0);
+        let res = mat.dot_matrix(&Matrix::eye(200));
+        assert_eq!((mat.n_rows, mat.n_columns), (res.n_rows, res.n_columns));
+        assert!(mat.data.iter().zip(res.data.iter()).all(|(&x, &y)| x == y));
+        let mat1 = Matrix::new(2, 3, 2.0);
+        let mat2 = Matrix::new(3, 2, 3.0);
+        let mat3 = mat1.dot_matrix(&mat2);
+        assert_eq!((mat3.n_rows, mat3.n_columns), (2, 2));
+        assert!(mat3.data.iter().all(|&x| x == 18.0));
+    }
 
     #[test]
     fn test_sum() {
@@ -840,6 +781,17 @@ mod tests {
     }
 
     #[test]
+    fn test_sum_all() {
+        let x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let sum_all = x.sum_all();
+        assert_eq!(sum_all, 21.0);
+    }
+
+    #[test]
     fn test_max() {
         let x = Matrix {
             n_rows: 2,
@@ -876,6 +828,66 @@ mod tests {
         let max_0 = y.max(0);
         assert_eq!((max_0.n_rows, max_0.n_columns), (1, 1));
         assert_eq!(max_0.data, vec![3.0]);
+    }
+    #[test]
+    fn test_max_all() {
+        let x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let max_all = x.max_all();
+        assert_eq!(max_all, 6.0);
+    }
+
+    #[test]
+    fn test_min() {
+        let x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let min_1 = x.min(1);
+        assert_eq!((min_1.n_rows, min_1.n_columns), (2, 1));
+        assert_eq!(min_1.data, vec![1.0, 4.0]);
+        let min_0 = x.min(0);
+        assert_eq!((min_0.n_rows, min_0.n_columns), (1, 3));
+        assert_eq!(min_0.data, vec![1.0, 2.0, 3.0]);
+
+        let y = Matrix {
+            n_rows: 1,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        let min_1 = y.min(1);
+        assert_eq!((min_1.n_rows, min_1.n_columns), (1, 1));
+        assert_eq!(min_1.data, vec![1.0]);
+        let min_0 = y.min(0);
+        assert_eq!((min_0.n_rows, min_0.n_columns), (1, 3));
+        assert_eq!(min_0.data, vec![1.0, 2.0, 3.0]);
+
+        let y = Matrix {
+            n_rows: 3,
+            n_columns: 1,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        let min_1 = y.min(1);
+        assert_eq!((min_1.n_rows, min_1.n_columns), (3, 1));
+        assert_eq!(min_1.data, vec![1.0, 2.0, 3.0]);
+        let min_0 = y.min(0);
+        assert_eq!((min_0.n_rows, min_0.n_columns), (1, 1));
+        assert_eq!(min_0.data, vec![1.0]);
+    }
+
+    #[test]
+    fn test_min_all() {
+        let x = Matrix {
+            n_rows: 2,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let min_all = x.min_all();
+        assert_eq!(min_all, 1.0);
     }
 
     #[test]
@@ -1060,21 +1072,6 @@ mod tests {
         let y = x.repeat(5, 1);
         assert_eq!((y.n_rows, y.n_columns), (1, 5));
         assert_eq!(y.data, vec![1.0, 1.0, 1.0, 1.0, 1.0,]);
-    }
-
-    #[test]
-    fn test_max_idx() {
-        let x = Matrix {
-            n_rows: 2,
-            n_columns: 3,
-            data: vec![1.0, 2.0, 3.0, 6.0, 5.0, 4.0],
-        };
-        let y = x.max_idx(1);
-        assert_eq!((y.n_rows, y.n_columns), (2, 1));
-        assert_eq!(y.data, vec![2.0, 0.0]);
-        let y = x.max_idx(0);
-        assert_eq!((y.n_rows, y.n_columns), (1, 3));
-        assert_eq!(y.data, vec![1.0, 1.0, 1.0]);
     }
 
     #[test]
