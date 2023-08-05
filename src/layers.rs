@@ -56,41 +56,6 @@ impl LinearLayer {
     }
 }
 
-pub struct BCELossLayer {
-    pub batch_size: usize,
-    pub loss: f32,
-    pub a: Matrix,
-    pub grad: Matrix,
-}
-
-impl BCELossLayer {
-    pub fn new(batch_size: usize) -> Self {
-        Self {
-            batch_size: batch_size,
-            loss: 0.0,
-            a: Matrix::new(batch_size, 1, 0.0),
-            grad: Matrix::new(batch_size, 1, 0.0),
-        }
-    }
-
-    pub fn forward(&mut self, z: &Matrix, y: &Matrix) {
-        self.a.copy_from(z);
-        self.a.element_wise_operation(|x| 1.0 / (1.0 + (-x).exp()));
-        self.loss = z
-            .data
-            .iter()
-            .zip(y.data.iter())
-            .map(|(z_n, y_n)| z_n.max(0.0) - z_n * y_n + (1.0 + (-z_n.abs()).exp()).ln())
-            .sum::<f32>()
-            / (self.batch_size as f32);
-    }
-
-    pub fn backward(&mut self, y: &Matrix) {
-        self.grad.copy_from(&(self.a));
-        self.grad.subtract_matrix(y);
-    }
-}
-
 pub struct ReluLayer {
     pub in_size: usize,
     pub batch_size: usize,
@@ -119,46 +84,6 @@ impl ReluLayer {
         self.grad
             .element_wise_operation(|x| if x > 0.0 { 1.0 } else { 0.0 });
         self.grad.multiply_matrix(upstream_grad);
-    }
-}
-
-pub struct CELossLayer {
-    pub in_size: usize,
-    pub batch_size: usize,
-    pub loss: f32,
-    pub a: Matrix,
-    pub grad: Matrix,
-}
-
-impl CELossLayer {
-    pub fn new(in_size: usize, batch_size: usize) -> Self {
-        Self {
-            in_size: in_size,
-            batch_size: batch_size,
-            loss: 0.0,
-            a: Matrix::new(batch_size, in_size, 0.0),
-            grad: Matrix::new(batch_size, in_size, 0.0),
-        }
-    }
-
-    pub fn forward(&mut self, z: &Matrix, y: &Matrix) {
-        self.a.copy_from(z);
-        self.a.subtract_column(&(self.a.max(1)));
-        self.a.element_wise_operation(|x| x.exp());
-        self.a.divide_column(&(self.a.sum(1)));
-
-        self.loss = y
-            .data
-            .iter()
-            .zip(self.a.data.iter())
-            .map(|(&y_n, a_n)| if y_n > 0.0 { -a_n.ln() } else { 0.0 })
-            .sum::<f32>()
-            / (self.batch_size as f32);
-    }
-
-    pub fn backward(&mut self, y: &Matrix) {
-        self.grad.copy_from(&(self.a));
-        self.grad.subtract_matrix(y);
     }
 }
 
