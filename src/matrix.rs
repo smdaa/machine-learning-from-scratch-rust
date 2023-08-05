@@ -245,14 +245,18 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
         let n_columns = other.n_columns;
         let mut mat: Matrix<T> = Matrix::new(n_rows, n_columns, T::zero());
 
-        for i in 0..n_rows {
-            for k in 0..self.n_columns {
-                for j in 0..n_columns {
-                    mat.data[i * mat.n_columns + j] = mat.data[i * mat.n_columns + j]
-                    + self.data[i * self.n_columns + k] * other.data[k * other.n_columns + j];
+        let n_inner = self.n_columns;
+        mat.data
+            .par_chunks_mut(n_columns)
+            .enumerate()
+            .for_each(|(i, chunk)| {
+                for k in 0..n_inner {
+                    let self_val = self.data[i * self.n_columns + k];
+                    for j in 0..n_columns {
+                        chunk[j] = chunk[j] + self_val * other.data[k * other.n_columns + j];
+                    }
                 }
-            }
-        }
+            });
 
         mat
     }
