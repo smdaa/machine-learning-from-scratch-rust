@@ -244,40 +244,15 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
         let n_rows = self.n_rows;
         let n_columns = other.n_columns;
         let mut mat: Matrix<T> = Matrix::new(n_rows, n_columns, T::zero());
-        const CHUNK_SIZE: usize = 4;
 
-        mat.data
-            .par_chunks_mut(n_columns)
-            .enumerate()
-            .for_each(|(i, row)| {
-                for j in (0..n_columns).step_by(CHUNK_SIZE) {
-                    let mut acc = [T::zero(); CHUNK_SIZE];
-
-                    for k in 0..self.n_columns {
-                        let self_idx = i * self.n_columns + k;
-                        let other_idx_base = k * other.n_columns + j;
-                        let remaining_chunk = CHUNK_SIZE.min(n_columns - j);
-
-                        for chunk_idx in 0..remaining_chunk {
-                            acc[chunk_idx] = acc[chunk_idx]
-                                + self.data[self_idx] * other.data[other_idx_base + chunk_idx];
-                        }
-                    }
-
-                    for chunk_idx in 0..CHUNK_SIZE.min(n_columns - j) {
-                        row[j + chunk_idx] = acc[chunk_idx];
-                    }
+        for i in 0..n_rows {
+            for k in 0..self.n_columns {
+                for j in 0..n_columns {
+                    mat.data[i * mat.n_columns + j] = mat.data[i * mat.n_columns + j]
+                    + self.data[i * self.n_columns + k] * other.data[k * other.n_columns + j];
                 }
-            });
-
-        mat
-    }
-
-    pub fn dot_matrix_strassen(&self, other: &Self) -> Self {
-        assert_eq!(self.n_columns, other.n_rows);
-        let n_rows = self.n_rows;
-        let n_columns = other.n_columns;
-        let  mat: Matrix<T> = Matrix::new(n_rows, n_columns, T::zero());
+            }
+        }
 
         mat
     }
@@ -758,6 +733,22 @@ mod tests {
         let mat3 = mat1.dot_matrix(&mat2);
         assert_eq!((mat3.n_rows, mat3.n_columns), (2, 2));
         assert!(mat3.data.iter().all(|&x| x == 18.0));
+        let mat1 = Matrix {
+            n_rows: 3,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        };
+        let mat2 = Matrix {
+            n_rows: 3,
+            n_columns: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        };
+        let mat3 = mat1.dot_matrix(&mat2);
+        assert_eq!((mat3.n_rows, mat3.n_columns), (3, 3));
+        assert_eq!(
+            mat3.data,
+            vec![30., 36., 42., 66., 81., 96., 102., 126., 150.]
+        );
     }
 
     #[test]
