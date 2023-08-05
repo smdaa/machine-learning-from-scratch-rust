@@ -56,37 +56,6 @@ impl LinearLayer {
     }
 }
 
-pub struct ReluLayer {
-    pub in_size: usize,
-    pub batch_size: usize,
-    pub a: Matrix,
-    pub grad: Matrix,
-}
-
-impl ReluLayer {
-    pub fn new(in_size: usize, batch_size: usize) -> Self {
-        Self {
-            in_size: in_size,
-            batch_size: batch_size,
-            a: Matrix::new(batch_size, in_size, 0.0),
-            grad: Matrix::new(batch_size, in_size, 0.0),
-        }
-    }
-
-    pub fn forward(&mut self, z: &Matrix) {
-        self.a.copy_from(z);
-        self.a
-            .element_wise_operation(|x| if x > 0.0 { x } else { 0.0 });
-    }
-
-    pub fn backward(&mut self, upstream_grad: &Matrix) {
-        self.grad.copy_from(&(self.a));
-        self.grad
-            .element_wise_operation(|x| if x > 0.0 { 1.0 } else { 0.0 });
-        self.grad.multiply_matrix(upstream_grad);
-    }
-}
-
 pub struct Conv2dLayer {
     pub batch_size: usize,
     pub in_channels: usize,
