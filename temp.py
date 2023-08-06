@@ -1,17 +1,16 @@
 import tensorflow as tf
 import numpy as np
 
-logits = [-3.0, 2.0, -1.0, 0.0, 0.0, -1.0, 2.0, -3.0]
-logits = np.array(logits).reshape((4, 2))
-logits_tensor = tf.constant(logits, dtype=tf.float32)
+a = tf.constant([[1., 2., 1.], [.5, 1., .5]], dtype = tf.float32)
+layer = tf.keras.layers.Softmax()
+
 
 with tf.GradientTape(persistent=True) as tape:
-    tape.watch(logits_tensor)
-    layer = tf.keras.layers.ReLU()
-    output = layer(logits_tensor)
+    tape.watch(a)
+    b = layer(a)
 
-gradients = tape.gradient(output, logits_tensor)
+grad = tape.gradient(b, a)
 
-print("Input logits: \n", logits)
-print("ReLU output: \n", output.numpy())
-print("Gradients of ReLU with respect to logits: \n", gradients.numpy())
+print("a: \n", a)
+print("b: \n", b)
+print("grad: \n", grad)
