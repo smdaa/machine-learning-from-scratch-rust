@@ -3,12 +3,16 @@
 #![allow(unused_imports)]
 #![allow(unreachable_code)]
 mod activation_layers;
+mod linear_layer;
 mod loss_layers;
 mod matrix;
+mod network;
 
 use activation_layers::*;
+use linear_layer::*;
 use loss_layers::*;
 use matrix::*;
+use network::*;
 use std::time::{Duration, Instant};
 
 fn benchmark_dot_matrix() {

@@ -1,6 +1,7 @@
 use crate::matrix::*;
 
 pub trait ActivationLayer {
+    fn new(in_size: usize, batch_size: usize) -> Self;
     fn forward(&mut self, z: &Matrix<f32>);
     fn backward(&mut self, upstream_grad: &Matrix<f32>);
 }
@@ -13,8 +14,8 @@ pub struct ReluLayer {
     pub grad: Matrix<f32>,
 }
 
-impl ReluLayer {
-    pub fn new(in_size: usize, batch_size: usize) -> Self {
+impl ActivationLayer for ReluLayer {
+    fn new(in_size: usize, batch_size: usize) -> Self {
         Self {
             in_size: in_size,
             batch_size: batch_size,
@@ -23,9 +24,6 @@ impl ReluLayer {
             grad: Matrix::new(batch_size, in_size, 0.0),
         }
     }
-}
-
-impl ActivationLayer for ReluLayer {
     fn forward(&mut self, z: &Matrix<f32>) {
         self.z.copy_content_from(z);
         self.a.copy_content_from(z);
@@ -49,8 +47,8 @@ pub struct SigmoidLayer {
     pub grad: Matrix<f32>,
 }
 
-impl SigmoidLayer {
-    pub fn new(in_size: usize, batch_size: usize) -> Self {
+impl ActivationLayer for SigmoidLayer {
+    fn new(in_size: usize, batch_size: usize) -> Self {
         Self {
             in_size: in_size,
             batch_size: batch_size,
@@ -59,9 +57,6 @@ impl SigmoidLayer {
             grad: Matrix::new(batch_size, in_size, 0.0),
         }
     }
-}
-
-impl ActivationLayer for SigmoidLayer {
     fn forward(&mut self, z: &Matrix<f32>) {
         self.z.copy_content_from(z);
         self.a.copy_content_from(z);
@@ -84,8 +79,8 @@ pub struct SoftmaxLayer {
     pub grad: Matrix<f32>,
 }
 
-impl SoftmaxLayer {
-    pub fn new(in_size: usize, batch_size: usize) -> Self {
+impl ActivationLayer for SoftmaxLayer {
+    fn new(in_size: usize, batch_size: usize) -> Self {
         Self {
             in_size: in_size,
             batch_size: batch_size,
@@ -94,9 +89,6 @@ impl SoftmaxLayer {
             grad: Matrix::new(batch_size, in_size, 0.0),
         }
     }
-}
-
-impl ActivationLayer for SoftmaxLayer {
     fn forward(&mut self, z: &Matrix<f32>) {
         self.z.copy_content_from(z);
         self.a.copy_content_from(z);

@@ -1,6 +1,7 @@
 use crate::matrix::*;
 
 pub trait LossLayer {
+    fn new(in_size: usize, batch_size: usize) -> Self;
     fn forward(&mut self, z: &Matrix<f32>, y: &Matrix<f32>);
     fn backward(&mut self, y: &Matrix<f32>);
 }
@@ -12,8 +13,8 @@ pub struct BCELossLayer {
     pub grad: Matrix<f32>,
 }
 
-impl BCELossLayer {
-    pub fn new(batch_size: usize) -> Self {
+impl LossLayer for BCELossLayer {
+    fn new(in_size: usize, batch_size: usize) -> Self {
         Self {
             batch_size: batch_size,
             loss: 0.0,
@@ -21,9 +22,6 @@ impl BCELossLayer {
             grad: Matrix::new(batch_size, 1, 0.0),
         }
     }
-}
-
-impl LossLayer for BCELossLayer {
     fn forward(&mut self, z: &Matrix<f32>, y: &Matrix<f32>) {
         self.a.copy_content_from(z);
         self.a.element_wise_operation(|x| 1.0 / (1.0 + (-x).exp()));
@@ -50,8 +48,8 @@ pub struct CCELossLayer {
     pub grad: Matrix<f32>,
 }
 
-impl CCELossLayer {
-    pub fn new(in_size: usize, batch_size: usize) -> Self {
+impl LossLayer for CCELossLayer {
+    fn new(in_size: usize, batch_size: usize) -> Self {
         Self {
             in_size: in_size,
             batch_size: batch_size,
@@ -60,9 +58,6 @@ impl CCELossLayer {
             grad: Matrix::new(batch_size, in_size, 0.0),
         }
     }
-}
-
-impl LossLayer for CCELossLayer {
     fn forward(&mut self, z: &Matrix<f32>, y: &Matrix<f32>) {
         self.a.copy_content_from(z);
         self.a.subtract_column(&(self.a.max(1)));
@@ -112,7 +107,7 @@ mod tests {
             n_columns: 1,
             data: vec![-18.6, 0.51, 2.94, -12.8],
         };
-        let mut bce_loss_layer: BCELossLayer = BCELossLayer::new(batch_size);
+        let mut bce_loss_layer: BCELossLayer = BCELossLayer::new(1, batch_size);
         bce_loss_layer.forward(&z, &y);
         bce_loss_layer.backward(&y);
 
