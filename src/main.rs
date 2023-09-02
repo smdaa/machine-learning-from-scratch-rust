@@ -7,6 +7,7 @@ mod linear_layer;
 mod loss_layers;
 mod matrix;
 mod network;
+mod vector;
 
 use activation_layers::*;
 use linear_layer::*;
@@ -14,6 +15,7 @@ use loss_layers::*;
 use matrix::*;
 use network::*;
 use std::time::{Duration, Instant};
+use vector::*;
 
 fn benchmark_dot_matrix() {
     let (n, m) = (3000, 100);
@@ -33,5 +35,6 @@ fn benchmark_dot_matrix() {
     );
 }
 fn main() {
-    benchmark_dot_matrix();
+    let vec = Vector::rand(10, 2.0, 3.0);
+    vec.print();
 }
