@@ -6,14 +6,12 @@ mod activation_layers;
 mod linear_layer;
 mod loss_layers;
 mod matrix;
-mod network;
 mod vector;
 
 use activation_layers::*;
 use linear_layer::*;
 use loss_layers::*;
 use matrix::*;
-use network::*;
 use std::time::{Duration, Instant};
 use vector::*;
 
@@ -35,6 +33,6 @@ fn benchmark_dot_matrix() {
     );
 }
 fn main() {
-    let vec = Vector::rand(10, 2.0, 3.0);
-    vec.print();
+    let mat:Matrix<f32> = Matrix::eye(3);
+    mat.bidiag();
 }

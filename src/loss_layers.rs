@@ -1,3 +1,4 @@
+use crate::vector::*;
 use crate::matrix::*;
 
 pub trait LossLayer {

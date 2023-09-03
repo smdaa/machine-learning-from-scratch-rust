@@ -1,7 +1,9 @@
 use crate::matrix::*;
 use num_traits::float::Float;
+use num_traits::real::Real;
 use rand::Rng;
 use rand_distr::{uniform::SampleUniform, Distribution, Normal};
+use rayon::iter::repeat;
 use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -13,7 +15,7 @@ pub struct Vector<T> {
     pub data: Vec<T>,
 }
 
-impl<T: Float + SampleUniform + FromStr + Display> Vector<T> {
+impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Vector<T> {
     pub fn new(n: usize, value: T) -> Self {
         Self {
             n: n,
@@ -155,15 +157,79 @@ impl<T: Float + SampleUniform + FromStr + Display> Vector<T> {
     pub fn divide_vector(&mut self, other: &Self) {
         self.element_wise_operation_vector(other, |a, b| a / b);
     }
-    /*
-        pub fn outer(&self, other: &Self) -> Matrix<T> {
-            let data = self
+
+    pub fn outer(&self, other: &Self) -> Matrix<T> {
+        let data: Vec<T> = self
             .data
             .iter()
-            .flat_map(|&a_i| other.data.iter().map(|&b_i| b_i * a_i).collect())
+            .flat_map(|&a_i| other.data.iter().map(move |&b_i| a_i * b_i))
             .collect();
+
+        Matrix {
+            n_rows: self.n,
+            n_columns: other.n,
+            data: data,
+        }
     }
-    */
+
+    pub fn reduce(&self, mut op: impl FnMut(T, T) -> T, init: T) -> T {
+        self.data.iter().fold(init, |a, &b| op(a, b))
+    }
+
+    pub fn sum(&self) -> T {
+        self.reduce(|a, b| a + b, T::zero())
+    }
+
+    pub fn max(&self) -> T {
+        self.reduce(|a, b| a.max(b), T::min_value())
+    }
+
+    pub fn min(&self) -> T {
+        self.reduce(|a, b| a.min(b), T::max_value())
+    }
+
+    pub fn norm2(&self) -> T {
+        self.data
+            .iter()
+            .fold(T::zero(), |a, &b| a + b.powi(2))
+            .sqrt()
+    }
+
+    pub fn h_stack(&self, m: usize) -> Matrix<T> {
+        let n_rows = self.n;
+        let n_columns = m;
+
+        let data = self
+            .data
+            .iter()
+            .flat_map(|&x| std::iter::repeat(x).take(m))
+            .collect();
+
+        Matrix {
+            n_rows: n_rows,
+            n_columns: n_columns,
+            data: data,
+        }
+    }
+
+    pub fn v_stack(&self, m: usize) -> Matrix<T> {
+        let n_rows = m;
+        let n_columns = self.n;
+
+        let data = self
+            .data
+            .clone()
+            .into_iter()
+            .cycle()
+            .take(n_rows * n_columns)
+            .collect();
+
+        Matrix {
+            n_rows: n_rows,
+            n_columns: n_columns,
+            data: data,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -327,5 +393,81 @@ mod tests {
         vec1.divide_vector(&vec2);
         assert_eq!(vec1.n, 3);
         assert!(vec1.data.iter().all(|&x| x == 2.0 / 3.0));
+    }
+
+    #[test]
+    fn test_outer() {
+        let u = Vector {
+            n: 3,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        let v = Vector {
+            n: 2,
+            data: vec![4.0, 5.0],
+        };
+        let mat = u.outer(&v);
+        assert_eq!((mat.n_rows, mat.n_columns), (3, 2));
+        assert_eq!(mat.data, vec![4.0, 5.0, 8.0, 10.0, 12.0, 15.0]);
+    }
+
+    #[test]
+    fn test_sum() {
+        let x = Vector {
+            n: 6,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let sum_all = x.sum();
+        assert_eq!(sum_all, 21.0);
+    }
+
+    #[test]
+    fn test_max() {
+        let x = Vector {
+            n: 6,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let sum_all = x.max();
+        assert_eq!(sum_all, 6.0);
+    }
+
+    #[test]
+    fn test_min() {
+        let x = Vector {
+            n: 6,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let sum_all = x.min();
+        assert_eq!(sum_all, 1.0);
+    }
+
+    #[test]
+    fn test_norm2() {
+        let x = Vector {
+            n: 2,
+            data: vec![3.0, 4.0],
+        };
+        assert_eq!(x.norm2(), 5.0);
+    }
+
+    #[test]
+    fn test_h_stack() {
+        let x = Vector {
+            n: 3,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        let mat = x.h_stack(2);
+        assert_eq!((mat.n_rows, mat.n_columns), (3, 2));
+        assert_eq!(mat.data, vec![1.0, 1.0, 2.0, 2.0, 3.0, 3.0]);
+    }
+
+    #[test]
+    fn test_v_stack() {
+        let x = Vector {
+            n: 3,
+            data: vec![1.0, 2.0, 3.0],
+        };
+        let mat = x.v_stack(2);
+        assert_eq!((mat.n_rows, mat.n_columns), (2, 3));
+        assert_eq!(mat.data, vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0]);
     }
 }

@@ -1,5 +1,5 @@
 [package]
-name = "deep-learning-from-scratch-rust"
+name = "machine-learning-from-scratch-rust"
 version = "0.1.0"
 edition = "2021"
 

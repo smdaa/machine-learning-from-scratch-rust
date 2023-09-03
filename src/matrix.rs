@@ -1,3 +1,4 @@
+use crate::vector::*;
 use num_traits::float::Float;
 use rand::Rng;
 use rand_distr::{uniform::SampleUniform, Distribution, Normal};
@@ -7,7 +8,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str::FromStr;
 use std::vec;
-
 pub struct Matrix<T> {
     pub n_rows: usize,
     pub n_columns: usize,
@@ -261,11 +261,10 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
         mat
     }
 
-    pub fn reduce_over_axis(&self, axis: i32, mut op: impl FnMut(T, T) -> T, init: T) -> Self {
+    pub fn reduce_over_axis(&self, axis: i32, mut op: impl FnMut(T, T) -> T, init: T) -> Vector<T> {
         match axis {
-            0 => Self {
-                n_rows: 1,
-                n_columns: self.n_columns,
+            0 => Vector {
+                n: self.n_columns,
                 data: (0..self.n_columns)
                     .map(|col_idx| {
                         self.data
@@ -276,9 +275,8 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
                     })
                     .collect(),
             },
-            1 => Self {
-                n_rows: self.n_rows,
-                n_columns: 1,
+            1 => Vector {
+                n: self.n_rows,
                 data: self
                     .data
                     .chunks(self.n_columns)
@@ -292,7 +290,7 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
     pub fn reduce_all(&self, mut op: impl FnMut(T, T) -> T, init: T) -> T {
         self.data.iter().fold(init, |a, &b| op(a, b))
     }
-    pub fn sum(&self, axis: i32) -> Self {
+    pub fn sum(&self, axis: i32) -> Vector<T> {
         self.reduce_over_axis(axis, |a, b| a + b, T::zero())
     }
 
@@ -300,7 +298,7 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
         self.reduce_all(|a, b| a + b, T::zero())
     }
 
-    pub fn max(&self, axis: i32) -> Self {
+    pub fn max(&self, axis: i32) -> Vector<T> {
         self.reduce_over_axis(axis, |a, b| a.max(b), T::min_value())
     }
 
@@ -308,7 +306,7 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
         self.reduce_all(|a, b| a.max(b), T::min_value())
     }
 
-    pub fn min(&self, axis: i32) -> Self {
+    pub fn min(&self, axis: i32) -> Vector<T> {
         self.reduce_over_axis(axis, |a, b| a.min(b), T::max_value())
     }
 
@@ -316,57 +314,56 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
         self.reduce_all(|a, b| a.min(b), T::max_value())
     }
 
-    pub fn element_wise_operation_row(&mut self, other_row: &Self, op: impl Fn(T, T) -> T) {
-        assert_eq!(self.n_columns, other_row.n_columns);
-        assert_eq!(1, other_row.n_rows);
-        self.data.chunks_mut(self.n_columns).for_each(|row| {
-            row.iter_mut()
-                .zip(other_row.data.iter())
+    pub fn element_wise_operation_row(&mut self, row: &Vector<T>, op: impl Fn(T, T) -> T) {
+        assert_eq!(self.n_columns, row.n);
+        self.data.chunks_mut(self.n_columns).for_each(|self_row| {
+            self_row
+                .iter_mut()
+                .zip(row.data.iter())
                 .for_each(|(x, y)| *x = op(*x, *y))
         })
     }
 
-    pub fn add_row(&mut self, other_row: &Self) {
-        self.element_wise_operation_row(other_row, |x, y| x + y);
+    pub fn add_row(&mut self, row: &Vector<T>) {
+        self.element_wise_operation_row(row, |x, y| x + y);
     }
 
-    pub fn subtract_row(&mut self, other_row: &Self) {
-        self.element_wise_operation_row(other_row, |x, y| x - y);
+    pub fn subtract_row(&mut self, row: &Vector<T>) {
+        self.element_wise_operation_row(row, |x, y| x - y);
     }
 
-    pub fn multiply_row(&mut self, other_row: &Self) {
-        self.element_wise_operation_row(other_row, |x, y| x * y);
+    pub fn multiply_row(&mut self, row: &Vector<T>) {
+        self.element_wise_operation_row(row, |x, y| x * y);
     }
 
-    pub fn divide_row(&mut self, other_row: &Self) {
-        self.element_wise_operation_row(other_row, |x, y| x / y);
+    pub fn divide_row(&mut self, row: &Vector<T>) {
+        self.element_wise_operation_row(row, |x, y| x / y);
     }
 
-    pub fn element_wise_operation_column(&mut self, other_column: &Self, op: impl Fn(T, T) -> T) {
-        assert_eq!(self.n_rows, other_column.n_rows);
-        assert_eq!(1, other_column.n_columns);
+    pub fn element_wise_operation_column(&mut self, column: &Vector<T>, op: impl Fn(T, T) -> T) {
+        assert_eq!(self.n_rows, column.n);
         for i in 0..self.n_rows {
             for j in 0..self.n_columns {
                 self.data[i * self.n_columns + j] =
-                    op(self.data[i * self.n_columns + j], other_column.data[i]);
+                    op(self.data[i * self.n_columns + j], column.data[i]);
             }
         }
     }
 
-    pub fn add_column(&mut self, other_column: &Self) {
-        self.element_wise_operation_column(other_column, |x, y| x + y);
+    pub fn add_column(&mut self, column: &Vector<T>) {
+        self.element_wise_operation_column(column, |x, y| x + y);
     }
 
-    pub fn subtract_column(&mut self, other_column: &Self) {
-        self.element_wise_operation_column(other_column, |x, y| x - y);
+    pub fn subtract_column(&mut self, column: &Vector<T>) {
+        self.element_wise_operation_column(column, |x, y| x - y);
     }
 
-    pub fn multiply_column(&mut self, other_column: &Self) {
-        self.element_wise_operation_column(other_column, |x, y| x * y);
+    pub fn multiply_column(&mut self, column: &Vector<T>) {
+        self.element_wise_operation_column(column, |x, y| x * y);
     }
 
-    pub fn divide_column(&mut self, other_column: &Self) {
-        self.element_wise_operation_column(other_column, |x, y| x / y);
+    pub fn divide_column(&mut self, column: &Vector<T>) {
+        self.element_wise_operation_column(column, |x, y| x / y);
     }
 
     pub fn repeat(&self, n: usize, axis: i32) -> Self {
@@ -399,6 +396,25 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
             },
             _ => panic!("Invalid option"),
         }
+    }
+
+    fn householder(x: Vector<T>, i: usize) {
+        let alpha = -x.data[i].signum() * x.norm2();
+        let mut v = x.clone();
+        v.data[i] = v.data[i] - alpha;
+        v.multiply_scalar(T::one() / v.norm2());
+        let mut P: Matrix<T> = Matrix::eye(x.n);
+        let mut temp = v.outer(&v);
+        temp.multiply_scalar(T::from(-2.0).unwrap());
+        P.subtract_matrix(&temp);
+    }
+
+    pub fn bidiag(&self) {
+        //Golub-Kahan Bidiagonalization
+        let m = self.n_rows;
+        let n = self.n_columns;
+
+        for k in 0..n {}
     }
 }
 
@@ -678,10 +694,10 @@ mod tests {
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
         let sum_1 = x.sum(1);
-        assert_eq!((sum_1.n_rows, sum_1.n_columns), (2, 1));
+        assert_eq!(sum_1.n, 2);
         assert_eq!(sum_1.data, vec![6.0, 15.0]);
         let sum_0 = x.sum(0);
-        assert_eq!((sum_0.n_rows, sum_0.n_columns), (1, 3));
+        assert_eq!(sum_0.n, 3);
         assert_eq!(sum_0.data, vec![5.0, 7.0, 9.0]);
 
         let y = Matrix {
@@ -690,10 +706,10 @@ mod tests {
             data: vec![1.0, 2.0, 3.0],
         };
         let sum_1 = y.sum(1);
-        assert_eq!((sum_1.n_rows, sum_1.n_columns), (1, 1));
+        assert_eq!(sum_1.n, 1);
         assert_eq!(sum_1.data, vec![6.0]);
         let sum_0 = y.sum(0);
-        assert_eq!((sum_0.n_rows, sum_0.n_columns), (1, 3));
+        assert_eq!(sum_0.n, 3);
         assert_eq!(sum_0.data, vec![1.0, 2.0, 3.0]);
 
         let y = Matrix {
@@ -702,10 +718,10 @@ mod tests {
             data: vec![1.0, 2.0, 3.0],
         };
         let sum_1 = y.sum(1);
-        assert_eq!((sum_1.n_rows, sum_1.n_columns), (3, 1));
+        assert_eq!(sum_1.n, 3);
         assert_eq!(sum_1.data, vec![1.0, 2.0, 3.0]);
         let sum_0 = y.sum(0);
-        assert_eq!((sum_0.n_rows, sum_0.n_columns), (1, 1));
+        assert_eq!(sum_0.n, 1);
         assert_eq!(sum_0.data, vec![6.0]);
     }
 
@@ -728,10 +744,10 @@ mod tests {
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
         let max_1 = x.max(1);
-        assert_eq!((max_1.n_rows, max_1.n_columns), (2, 1));
+        assert_eq!(max_1.n, 2);
         assert_eq!(max_1.data, vec![3.0, 6.0]);
         let max_0 = x.max(0);
-        assert_eq!((max_0.n_rows, max_0.n_columns), (1, 3));
+        assert_eq!(max_0.n, 3);
         assert_eq!(max_0.data, vec![4.0, 5.0, 6.0]);
 
         let y = Matrix {
@@ -740,10 +756,10 @@ mod tests {
             data: vec![1.0, 2.0, 3.0],
         };
         let max_1 = y.max(1);
-        assert_eq!((max_1.n_rows, max_1.n_columns), (1, 1));
+        assert_eq!(max_1.n, 1);
         assert_eq!(max_1.data, vec![3.0]);
         let max_0 = y.max(0);
-        assert_eq!((max_0.n_rows, max_0.n_columns), (1, 3));
+        assert_eq!(max_0.n, 3);
         assert_eq!(max_0.data, vec![1.0, 2.0, 3.0]);
 
         let y = Matrix {
@@ -752,12 +768,13 @@ mod tests {
             data: vec![1.0, 2.0, 3.0],
         };
         let max_1 = y.max(1);
-        assert_eq!((max_1.n_rows, max_1.n_columns), (3, 1));
+        assert_eq!(max_1.n, 3);
         assert_eq!(max_1.data, vec![1.0, 2.0, 3.0]);
         let max_0 = y.max(0);
-        assert_eq!((max_0.n_rows, max_0.n_columns), (1, 1));
+        assert_eq!(max_0.n, 1);
         assert_eq!(max_0.data, vec![3.0]);
     }
+
     #[test]
     fn test_max_all() {
         let x = Matrix {
@@ -777,10 +794,10 @@ mod tests {
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
         let min_1 = x.min(1);
-        assert_eq!((min_1.n_rows, min_1.n_columns), (2, 1));
+        assert_eq!(min_1.n, 2);
         assert_eq!(min_1.data, vec![1.0, 4.0]);
         let min_0 = x.min(0);
-        assert_eq!((min_0.n_rows, min_0.n_columns), (1, 3));
+        assert_eq!(min_0.n, 3);
         assert_eq!(min_0.data, vec![1.0, 2.0, 3.0]);
 
         let y = Matrix {
@@ -789,10 +806,10 @@ mod tests {
             data: vec![1.0, 2.0, 3.0],
         };
         let min_1 = y.min(1);
-        assert_eq!((min_1.n_rows, min_1.n_columns), (1, 1));
+        assert_eq!(min_1.n, 1);
         assert_eq!(min_1.data, vec![1.0]);
         let min_0 = y.min(0);
-        assert_eq!((min_0.n_rows, min_0.n_columns), (1, 3));
+        assert_eq!(min_0.n, 3);
         assert_eq!(min_0.data, vec![1.0, 2.0, 3.0]);
 
         let y = Matrix {
@@ -801,10 +818,10 @@ mod tests {
             data: vec![1.0, 2.0, 3.0],
         };
         let min_1 = y.min(1);
-        assert_eq!((min_1.n_rows, min_1.n_columns), (3, 1));
+        assert_eq!(min_1.n, 3);
         assert_eq!(min_1.data, vec![1.0, 2.0, 3.0]);
         let min_0 = y.min(0);
-        assert_eq!((min_0.n_rows, min_0.n_columns), (1, 1));
+        assert_eq!(min_0.n, 1);
         assert_eq!(min_0.data, vec![1.0]);
     }
 
@@ -826,12 +843,11 @@ mod tests {
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let other_row = Matrix {
-            n_rows: 1,
-            n_columns: 3,
+        let row = Vector {
+            n: 3,
             data: vec![1.0, 2.0, 3.0],
         };
-        x.add_row(&other_row);
+        x.add_row(&row);
         assert_eq!((x.n_rows, x.n_columns), (2, 3));
         assert_eq!(x.data, vec![2.0, 4.0, 6.0, 5.0, 7.0, 9.0]);
     }
@@ -843,12 +859,11 @@ mod tests {
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let other_row = Matrix {
-            n_rows: 1,
-            n_columns: 3,
+        let row = Vector {
+            n: 3,
             data: vec![1.0, 2.0, 3.0],
         };
-        x.subtract_row(&other_row);
+        x.subtract_row(&row);
         assert_eq!((x.n_rows, x.n_columns), (2, 3));
         assert_eq!(x.data, vec![0.0, 0.0, 0.0, 3.0, 3.0, 3.0]);
     }
@@ -860,12 +875,11 @@ mod tests {
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let other_row = Matrix {
-            n_rows: 1,
-            n_columns: 3,
+        let row = Vector {
+            n: 3,
             data: vec![1.0, 2.0, 3.0],
         };
-        x.multiply_row(&other_row);
+        x.multiply_row(&row);
         assert_eq!((x.n_rows, x.n_columns), (2, 3));
         assert_eq!(x.data, vec![1.0, 4.0, 9.0, 4.0, 10.0, 18.0]);
     }
@@ -877,12 +891,11 @@ mod tests {
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let other_row = Matrix {
-            n_rows: 1,
-            n_columns: 3,
+        let row = Vector {
+            n: 3,
             data: vec![1.0, 2.0, 3.0],
         };
-        x.divide_row(&other_row);
+        x.divide_row(&row);
         assert_eq!((x.n_rows, x.n_columns), (2, 3));
         assert_eq!(x.data, vec![1.0, 1.0, 1.0, 4.0, 2.5, 2.0]);
     }
@@ -894,12 +907,11 @@ mod tests {
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let other_column = Matrix {
-            n_rows: 2,
-            n_columns: 1,
+        let column = Vector {
+            n: 2,
             data: vec![1.0, 2.0],
         };
-        x.add_column(&other_column);
+        x.add_column(&column);
         assert_eq!((x.n_rows, x.n_columns), (2, 3));
         assert_eq!(x.data, vec![2.0, 3.0, 4.0, 6.0, 7.0, 8.0]);
     }
@@ -911,12 +923,11 @@ mod tests {
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let other_column = Matrix {
-            n_rows: 2,
-            n_columns: 1,
+        let column = Vector {
+            n: 2,
             data: vec![1.0, 2.0],
         };
-        x.subtract_column(&other_column);
+        x.subtract_column(&column);
         assert_eq!((x.n_rows, x.n_columns), (2, 3));
         assert_eq!(x.data, vec![0.0, 1.0, 2.0, 2.0, 3.0, 4.0]);
     }
@@ -928,12 +939,11 @@ mod tests {
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let other_column = Matrix {
-            n_rows: 2,
-            n_columns: 1,
+        let column = Vector {
+            n: 2,
             data: vec![1.0, 2.0],
         };
-        x.multiply_column(&other_column);
+        x.multiply_column(&column);
         assert_eq!((x.n_rows, x.n_columns), (2, 3));
         assert_eq!(x.data, vec![1.0, 2.0, 3.0, 8.0, 10.0, 12.0]);
     }
@@ -945,12 +955,11 @@ mod tests {
             n_columns: 3,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let other_column = Matrix {
-            n_rows: 2,
-            n_columns: 1,
+        let column = Vector {
+            n: 2,
             data: vec![1.0, 2.0],
         };
-        x.divide_column(&other_column);
+        x.divide_column(&column);
         assert_eq!((x.n_rows, x.n_columns), (2, 3));
         assert_eq!(x.data, vec![1.0, 2.0, 3.0, 2.0, 2.5, 3.0]);
     }

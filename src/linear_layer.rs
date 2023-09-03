@@ -1,15 +1,16 @@
 use crate::matrix::*;
+use crate::vector::*;
 
 pub struct LinearLayer {
     pub in_size: usize,
     pub out_size: usize,
     pub batch_size: usize,
     pub w: Matrix<f32>,
-    pub b: Matrix<f32>,
+    pub b: Vector<f32>,
     pub z: Matrix<f32>,
     pub x: Matrix<f32>,
     pub dw: Matrix<f32>,
-    pub db: Matrix<f32>,
+    pub db: Vector<f32>,
     pub grad: Matrix<f32>,
 }
 
@@ -21,11 +22,11 @@ impl LinearLayer {
             out_size: out_size,
             batch_size: batch_size,
             w: Matrix::rand(in_size, out_size, -std_dev, std_dev),
-            b: Matrix::rand(1, out_size, -std_dev, std_dev),
+            b: Vector::rand(out_size, -std_dev, std_dev),
             z: Matrix::new(batch_size, out_size, 0.0),
             x: Matrix::new(batch_size, in_size, 0.0),
             dw: Matrix::new(in_size, out_size, 0.0),
-            db: Matrix::new(1, out_size, 0.0),
+            db: Vector::new(out_size, 0.0),
             grad: Matrix::new(batch_size, in_size, 0.0),
         }
     }
@@ -48,7 +49,7 @@ impl LinearLayer {
         self.dw.multiply_scalar(-learning_rate);
         self.w.add_matrix(&(self.dw));
         self.db.multiply_scalar(-learning_rate);
-        self.b.add_matrix(&(self.db));
+        self.b.add_vector(&(self.db));
     }
 }
 
@@ -82,9 +83,8 @@ mod tests {
             n_columns: out_size,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 8.0, 9.0, 10.0, 11.0],
         };
-        linear_layer.b = Matrix {
-            n_rows: 1,
-            n_columns: out_size,
+        linear_layer.b = Vector {
+            n: out_size,
             data: vec![1.0, 2.0, 3.0, 4.0],
         };
         linear_layer.forward(&x);
@@ -105,8 +105,7 @@ mod tests {
         let truth: Vec<f32> = vec![1.5, 1.5, 1.5, 1.5, 3., 3., 3., 3., 1.5, 1.5, 1.5, 1.5];
         assert!(almost_equal_vec(&linear_layer.dw.data, &truth));
 
-        assert_eq!(linear_layer.db.n_rows, 1);
-        assert_eq!(linear_layer.db.n_columns, out_size);
+        assert_eq!(linear_layer.db.n, out_size);
         let truth: Vec<f32> = vec![2., 2., 2., 2.];
         assert!(almost_equal_vec(&linear_layer.db.data, &truth));
     }
