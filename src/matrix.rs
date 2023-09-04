@@ -564,8 +564,10 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
                     u.data[i * nu + k] = -u.data[i * nu + k];
                 }
                 u.data[k * nu + k] = T::one() + u.data[k * nu + k];
-                for i in 0..k - 1 {
-                    u.data[i * nu + k] = T::zero();
+                if k > 0 {
+                    for i in 0..k - 1 {
+                        u.data[i * nu + k] = T::zero();
+                    }
                 }
             } else {
                 for i in 0..m {
@@ -598,9 +600,28 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
         }
 
         /*
-            Main iteration loop for the singular values.
+           Main iteration loop for the singular values.
+        */
+        let pp = p - 1;
+        let iter = 0;
+        let eps = 2.0.powi(-52);
+        let tiny = 2.0.powi(-966);
+        while p > 0 {
+            let kase = 0;
 
-         */
+            /*
+               This section of the program inspects for
+               negligible elements in the s and e arrays.  On
+               completion the variables kase and k are set as follows.
+
+               kase = 1     if s(p) and e[k-1] are negligible and k<p
+               kase = 2     if s(k) is negligible and k<p
+               kase = 3     if e[k-1] is negligible, k<p, and
+                            s(k), ..., s(p) are not negligible (qr step).
+               kase = 4     if e(p-1) is negligible (convergence).
+            */
+            break;
+        }
     }
 }
 

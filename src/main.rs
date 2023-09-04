@@ -33,6 +33,9 @@ fn benchmark_dot_matrix() {
     );
 }
 fn main() {
-    let mut a = Matrix::new(100, 100, 1.0);
+    let mut a = Matrix::new(3, 3, 1.0);
+    a.print();
+    println!("-------------------");
     a.svd();
+    a.print();
 }
