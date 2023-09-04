@@ -397,6 +397,105 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
             _ => panic!("Invalid option"),
         }
     }
+
+    pub fn qr_decomposition(&self) -> (bool, Self, Self) {
+        /*
+           For an m-by-n matrix A with m >= n, the QR decomposition is an m-by-n
+           orthogonal matrix Q and an n-by-n upper triangular matrix R so that
+           A = Q*R.
+        */
+        let m = self.n_rows;
+        let n = self.n_columns;
+        let mut qr = self.clone();
+        let mut r_diag: Vector<T> = Vector::zeros(n);
+
+        /*
+           Main loop
+        */
+        for k in 0..n {
+            /*
+               Compute 2-norm of k-th column without under/overflow.
+            */
+            let mut nrm = T::zero();
+            for i in k..m {
+                nrm = (nrm.powi(2) + qr.data[i * n + k].powi(2)).sqrt();
+            }
+
+            if nrm != T::zero() {
+                /*
+                   Form k-th Householder vector.
+                */
+                if qr.data[k * n + k] < T::zero() {
+                    nrm = -nrm;
+                }
+                for i in k..m {
+                    qr.data[i * n + k] = qr.data[i * n + k] / nrm;
+                }
+                qr.data[k * n + k] = qr.data[k * n + k] + T::one();
+
+                /*
+                   Apply transformation to remaining columns.
+                */
+                for j in k + 1..n {
+                    let mut s = T::zero();
+                    for i in k..m {
+                        s = s + qr.data[i * n + k] * qr.data[i * n + j];
+                    }
+                    s = -s / qr.data[k * n + k];
+                    for i in k..m {
+                        qr.data[i * n + j] = qr.data[i * n + j] + s * qr.data[i * n + k];
+                    }
+                }
+            }
+            r_diag.data[k] = -nrm;
+        }
+
+        /*
+           Is A full rank?
+        */
+        let full_rank = r_diag.data.iter().all(|x| *x != T::zero());
+
+        /*
+           Construct r.
+        */
+        let mut r: Matrix<T> = Matrix::zeros(n, n);
+        for i in 0..n {
+            for j in 0..n {
+                if i < j {
+                    r.data[i * n + j] = qr.data[i * n + j];
+                } else if i == j {
+                    r.data[i * n + j] = r_diag.data[i];
+                } else {
+                    r.data[i * n + j] = T::zero();
+                }
+            }
+        }
+
+        /*
+           Construct q (economy-sized).
+        */
+        let mut q: Matrix<T> = Matrix::zeros(m, n);
+        for k in (0..n).rev() {
+            for i in 0..m {
+                q.data[i * n + k] = T::zero();
+            }
+            q.data[k * n + k] = T::one();
+            for j in k..n {
+                if qr.data[k * n + k] != T::zero() {
+                    let mut s = T::zero();
+                    for i in k..m {
+                        s = s + qr.data[i * n + k] * q.data[i * n + j];
+                    }
+                    s = -s / qr.data[k * n + k];
+                    for i in k..m {
+                        q.data[i * n + j] = q.data[i * n + j] + s * qr.data[i * n + k];
+                    }
+                }
+            }
+        }
+
+        (full_rank, q, r)
+    }
 }
 
 #[cfg(test)]
@@ -991,5 +1090,40 @@ mod tests {
         let y = x.repeat(5, 1);
         assert_eq!((y.n_rows, y.n_columns), (1, 5));
         assert_eq!(y.data, vec![1.0, 1.0, 1.0, 1.0, 1.0,]);
+    }
+
+    #[test]
+    fn test_qr_decomposition() {
+        let a = Matrix {
+            n_rows: 4,
+            n_columns: 3,
+            data: vec![
+                1.0, -1.0, 4.0, 1.0, 4.0, -2.0, 1.0, 4.0, 2.0, 1.0, -1.0, 0.0,
+            ],
+        };
+        let (full_rank, q, r) = a.qr_decomposition();
+        let a_ = q.dot_matrix(&r);
+        assert!(full_rank);
+        assert_eq!((a.n_rows, a.n_columns), (a_.n_rows, a_.n_columns));
+        assert!(a
+            .data
+            .iter()
+            .zip(a_.data.iter())
+            .all(|(x, y)| (x - y).abs() < f64::EPSILON.sqrt()));
+
+        let a = Matrix {
+            n_rows: 3,
+            n_columns: 3,
+            data: vec![3.0, 2.0, 4.0, 2.0, 0.0, 2.0, 4.0, 2.0, 3.0],
+        };
+        let (full_rank, q, r) = a.qr_decomposition();
+        let a_ = q.dot_matrix(&r);
+        assert!(full_rank);
+        assert_eq!((a.n_rows, a.n_columns), (a_.n_rows, a_.n_columns));
+        assert!(a
+            .data
+            .iter()
+            .zip(a_.data.iter())
+            .all(|(x, y)| (x - y).abs() < f64::EPSILON.sqrt()));
     }
 }

@@ -32,6 +32,5 @@ fn benchmark_dot_matrix() {
         duration
     );
 }
-fn main() {
 
-}
+fn main() {}
