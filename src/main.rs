@@ -16,9 +16,9 @@ use std::time::{Duration, Instant};
 use vector::*;
 
 fn benchmark_dot_matrix() {
-    let (n, m) = (3000, 100);
+    let (n, m) = (3000, 3000);
     let a: Matrix<f64> = Matrix::rand(n, m, 0.0, 100.0);
-    let (m, p) = (100, 3000);
+    let (m, p) = (3000, 3000);
     let b: Matrix<f64> = Matrix::rand(m, p, 0.0, 100.0);
 
     let start = Instant::now();
@@ -33,6 +33,6 @@ fn benchmark_dot_matrix() {
     );
 }
 fn main() {
-    let mat:Matrix<f32> = Matrix::eye(3);
-    mat.bidiag();
+    let mut a = Matrix::new(100, 100, 1.0);
+    a.svd();
 }
