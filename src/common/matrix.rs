@@ -413,6 +413,52 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
             _ => panic!("Invalid option"),
         }
     }
+
+    pub fn insert_column(&self, column: &Vector<T>, j: usize) -> Self {
+        let n_rows = self.n_rows;
+        let n_columns = self.n_columns;
+        assert_eq!(column.n, n_rows);
+        assert!(j < n_columns + 1);
+        let new_data = self
+            .data
+            .chunks(n_columns)
+            .zip(column.data.iter())
+            .flat_map(|(row, &value)| {
+                let mut new_row: Vec<T> = row.into();
+                new_row.insert(j, value);
+                new_row
+            })
+            .collect::<Vec<T>>();
+
+        Self {
+            n_rows: n_rows,
+            n_columns: n_columns + 1,
+            data: new_data,
+        }
+    }
+
+    pub fn insert_row(&self, row: &Vector<T>, i: usize) -> Self {
+        let n_rows = self.n_rows;
+        let n_columns = self.n_columns;
+        assert_eq!(row.n, n_columns);
+        assert!(i < n_rows + 1);
+        //let new_data = self.data.iter().chain(row.data.iter()).cloned().collect();
+        let mut new_data = Vec::with_capacity(n_columns * (n_rows + 1));
+        if i == 0 {
+            new_data.extend(&row.data);
+            new_data.extend(&self.data);
+        } else {
+            new_data.extend(&self.data[0..=((i - 1) * n_columns + 1)]);
+            new_data.extend(&row.data);
+            new_data.extend(&self.data[(i * n_columns)..]);
+        }
+
+        Self {
+            n_rows: n_rows + 1,
+            n_columns: n_columns,
+            data: new_data,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1025,6 +1071,63 @@ mod tests {
         assert_eq!(y.data, vec![1.0, 1.0, 1.0, 1.0, 1.0,]);
     }
 
+    #[test]
+    fn test_insert_column() {
+        let mat = Matrix {
+            n_rows: 3,
+            n_columns: 2,
+            data: vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        };
+        let column = Vector {
+            n: 3,
+            data: vec![1.0, 1.0, 1.0],
+        };
+        let new_mat = mat.insert_column(&column, 0);
+        assert_eq!(new_mat.n_rows, 3);
+        assert_eq!(new_mat.n_columns, 3);
+        assert_eq!(
+            new_mat.data,
+            vec![1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        );
+        let new_mat = mat.insert_column(&column, 1);
+        assert_eq!(new_mat.n_rows, 3);
+        assert_eq!(new_mat.n_columns, 3);
+        assert_eq!(
+            new_mat.data,
+            vec![0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]
+        );
+        let new_mat = mat.insert_column(&column, 2);
+        assert_eq!(new_mat.n_rows, 3);
+        assert_eq!(new_mat.n_columns, 3);
+        assert_eq!(
+            new_mat.data,
+            vec![0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]
+        );
+    }
+    #[test]
+    fn test_insert_row() {
+        let mat = Matrix {
+            n_rows: 3,
+            n_columns: 2,
+            data: vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        };
+        let column = Vector {
+            n: 2,
+            data: vec![1.0, 1.0],
+        };
+        let new_mat = mat.insert_row(&column, 0);
+        assert_eq!(new_mat.n_rows, 4);
+        assert_eq!(new_mat.n_columns, 2);
+        assert_eq!(new_mat.data, vec![1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let new_mat = mat.insert_row(&column, 3);
+        assert_eq!(new_mat.n_rows, 4);
+        assert_eq!(new_mat.n_columns, 2);
+        assert_eq!(new_mat.data, vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0]);
+        let new_mat = mat.insert_row(&column, 2);
+        assert_eq!(new_mat.n_rows, 4);
+        assert_eq!(new_mat.n_columns, 2);
+        assert_eq!(new_mat.data, vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]);
+    }
     /*
 
     */

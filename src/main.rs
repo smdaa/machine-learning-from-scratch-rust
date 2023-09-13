@@ -14,4 +14,9 @@ mod machine_learning {
     pub mod regressors;
 }
 
-fn main() {}
+use crate::common::vector::*;
+use crate::common::matrix::*;
+
+fn main() {
+
+}

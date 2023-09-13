@@ -6,8 +6,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 pub fn linear_regression<T: Float + SampleUniform + FromStr + Display + Send + Sync>(
-    X: Matrix<T>,
+    x: Matrix<T>,
     y: Vector<T>,
 ) {
-    
 }
