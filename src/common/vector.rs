@@ -1,12 +1,14 @@
-use crate::common::matrix::*;
-use num_traits::float::Float;
-use rand::Rng;
-use rand_distr::uniform::SampleUniform;
 use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str::FromStr;
 use std::vec;
+
+use num_traits::float::Float;
+use rand::Rng;
+use rand_distr::uniform::SampleUniform;
+
+use crate::common::matrix::*;
 
 pub struct Vector<T> {
     pub n: usize,
@@ -49,8 +51,8 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Vector<T> {
     }
 
     pub fn from_txt(path: &str) -> Self
-    where
-        <T as FromStr>::Err: Debug,
+        where
+            <T as FromStr>::Err: Debug,
     {
         let file = match File::open(path) {
             Ok(file) => file,
@@ -99,10 +101,10 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Vector<T> {
     pub fn is_equal(&self, other: &Self) -> bool {
         self.n == other.n
             && self
-                .data
-                .iter()
-                .zip(other.data.iter())
-                .all(|(&a, &b)| (a - b).abs() < T::epsilon())
+            .data
+            .iter()
+            .zip(other.data.iter())
+            .all(|(&a, &b)| (a - b).abs() < T::epsilon())
     }
 
     pub fn slice(&self, start: usize, end: usize) -> Self {
@@ -178,6 +180,10 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Vector<T> {
         self.reduce(|a, b| a + b, T::zero())
     }
 
+    pub fn mean(&self) -> T {
+        self.sum() / T::from(self.n).unwrap()
+    }
+
     pub fn max(&self) -> T {
         self.reduce(|a, b| a.max(b), T::min_value())
     }
@@ -232,8 +238,8 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Vector<T> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+
     #[test]
     fn test_new() {
         let vec: Vector<f32> = Vector::new(100, 1.0);
@@ -412,8 +418,18 @@ mod tests {
             n: 6,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let sum_all = x.sum();
-        assert_eq!(sum_all, 21.0);
+        let sum = x.sum();
+        assert_eq!(sum, 21.0);
+    }
+
+    #[test]
+    fn test_mean() {
+        let x = Vector {
+            n: 6,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
+        let mean = x.mean();
+        assert_eq!(mean, 3.5);
     }
 
     #[test]
@@ -422,8 +438,8 @@ mod tests {
             n: 6,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let sum_all = x.max();
-        assert_eq!(sum_all, 6.0);
+        let max = x.max();
+        assert_eq!(max, 6.0);
     }
 
     #[test]
@@ -432,8 +448,8 @@ mod tests {
             n: 6,
             data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         };
-        let sum_all = x.min();
-        assert_eq!(sum_all, 1.0);
+        let min = x.min();
+        assert_eq!(min, 1.0);
     }
 
     #[test]

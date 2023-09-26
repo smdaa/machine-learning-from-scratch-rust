@@ -60,6 +60,7 @@ mod tests {
     fn almost_equal_scalar(scalar_1: f32, scalar_2: f32) -> bool {
         (scalar_1 - scalar_2).abs() < std::f32::EPSILON
     }
+
     fn almost_equal_vec(vec_1: &Vec<f32>, vec_2: &Vec<f32>) -> bool {
         vec_1
             .iter()

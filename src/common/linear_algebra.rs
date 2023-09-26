@@ -1,9 +1,11 @@
-use crate::common::matrix::*;
-use crate::common::vector::*;
-use num_traits::float::Float;
-use rand_distr::uniform::SampleUniform;
 use std::fmt::Display;
 use std::str::FromStr;
+
+use num_traits::float::Float;
+use rand_distr::uniform::SampleUniform;
+
+use crate::common::matrix::*;
+use crate::common::vector::*;
 
 pub fn qr_decomposition<T: Float + SampleUniform + FromStr + Display + Send + Sync>(
     matrix: &Matrix<T>,
@@ -124,25 +126,10 @@ pub fn back_substitution<T: Float + SampleUniform + FromStr + Display + Send + S
     x
 }
 
-pub fn least_squares<T: Float + SampleUniform + FromStr + Display + Send + Sync>(
-    a: &Matrix<T>,
-    b: &Vector<T>,
-) -> Vector<T> {
-    // compute QR factorization 𝐴 = 𝑄𝑅 (2𝑚𝑛2 flops if 𝐴 is 𝑚 × 𝑛)
-    let (_, q, r) = qr_decomposition(&a);
-
-    // matrix-vector product 𝑑 = 𝑄𝑇 𝑏 (2𝑚𝑛 flops)
-    let d = q.transpose().dot_vector(&b);
-
-    // solve 𝑅𝑥 = 𝑑 by back substitution (𝑛2 flops)
-    let x = back_substitution(&r, &d);
-
-    x
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_qr_decomposition() {
         let a = Matrix {
@@ -192,21 +179,5 @@ mod tests {
         let x = back_substitution(&a, &b);
         assert_eq!(x.n, 3);
         assert_eq!(x.data, vec![-24.0, -13.0, 2.0]);
-    }
-
-    #[test]
-    fn test_least_squares() {
-        let a = Matrix {
-            n_rows: 3,
-            n_columns: 2,
-            data: vec![3.0, -6.0, 4.0, -8.0, 0.0, 1.0],
-        };
-        let b = Vector {
-            n: 3,
-            data: vec![-1.0, 7.0, 2.0],
-        };
-        let x = least_squares(&a, &b);
-        assert_eq!(x.n, 2);
-        assert_eq!(x.data, vec![5.0, 2.0]);
     }
 }

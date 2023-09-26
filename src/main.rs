@@ -1,3 +1,6 @@
+use crate::common::matrix::*;
+use crate::common::vector::*;
+
 mod common {
     pub mod linear_algebra;
     pub mod matrix;
@@ -12,11 +15,15 @@ mod deep_learning {
 
 mod machine_learning {
     pub mod regressors;
+
+    pub mod classifiers;
 }
 
-use crate::common::vector::*;
-use crate::common::matrix::*;
-
 fn main() {
+    let a: Matrix<f32> = Matrix::eye(4);
+    let c: Vector<f32> = Vector::new(4, 2.0);
+    let b = a.insert_column(&c, 3);
 
+    a.print();
+    b.print();
 }

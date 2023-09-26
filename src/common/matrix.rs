@@ -1,12 +1,15 @@
-use crate::common::vector::*;
-use num_traits::float::Float;
-use rand::Rng;
-use rand_distr::uniform::SampleUniform;
 use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str::FromStr;
 use std::vec;
+
+use num_traits::float::Float;
+use rand::Rng;
+use rand_distr::uniform::SampleUniform;
+
+use crate::common::vector::*;
+
 pub struct Matrix<T> {
     pub n_rows: usize,
     pub n_columns: usize,
@@ -78,8 +81,8 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
     }
 
     pub fn from_txt(path: &str) -> Self
-    where
-        <T as FromStr>::Err: Debug,
+        where
+            <T as FromStr>::Err: Debug,
     {
         let file = match File::open(path) {
             Ok(file) => file,
@@ -151,10 +154,10 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
     pub fn is_equal(&self, mat: &Self) -> bool {
         self.shape() == mat.shape()
             && self
-                .data
-                .iter()
-                .zip(mat.data.iter())
-                .all(|(&a, &b)| (a - b).abs() < T::epsilon())
+            .data
+            .iter()
+            .zip(mat.data.iter())
+            .all(|(&a, &b)| (a - b).abs() < T::epsilon())
     }
 
     pub fn transpose(&self) -> Self {
@@ -463,8 +466,8 @@ impl<T: Float + SampleUniform + FromStr + Display + Send + Sync> Matrix<T> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+
     #[test]
     fn test_new() {
         let mat: Matrix<f32> = Matrix::new(100, 100, 1.0);
@@ -496,6 +499,7 @@ mod tests {
             }
         }
     }
+
     #[test]
     fn test_rand() {
         let mat: Matrix<f32> = Matrix::rand(100, 200, -5.0, 5.0);
@@ -700,6 +704,7 @@ mod tests {
         assert_eq!((mat1.n_rows, mat1.n_columns), (3, 3));
         assert!(mat1.data.iter().all(|&x| x == 2.0 / 3.0));
     }
+
     #[test]
     fn test_dot_matrix() {
         let mat = Matrix::rand(100, 200, 0.0, 1.0);
@@ -1036,7 +1041,7 @@ mod tests {
             y.data,
             vec![
                 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 1.0, 2.0, 3.0, 4.0,
-                5.0, 6.0
+                5.0, 6.0,
             ]
         );
 
@@ -1047,7 +1052,7 @@ mod tests {
         };
         let y = x.repeat(5, 0);
         assert_eq!((y.n_rows, y.n_columns), (5, 1));
-        assert_eq!(y.data, vec![1.0, 1.0, 1.0, 1.0, 1.0,]);
+        assert_eq!(y.data, vec![1.0, 1.0, 1.0, 1.0, 1.0]);
 
         let x = Matrix {
             n_rows: 2,
@@ -1068,7 +1073,7 @@ mod tests {
         };
         let y = x.repeat(5, 1);
         assert_eq!((y.n_rows, y.n_columns), (1, 5));
-        assert_eq!(y.data, vec![1.0, 1.0, 1.0, 1.0, 1.0,]);
+        assert_eq!(y.data, vec![1.0, 1.0, 1.0, 1.0, 1.0]);
     }
 
     #[test]
@@ -1104,6 +1109,7 @@ mod tests {
             vec![0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]
         );
     }
+
     #[test]
     fn test_insert_row() {
         let mat = Matrix {
